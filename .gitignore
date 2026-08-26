@@ -1,0 +1,7 @@
+node_modules/
+dist/
+release/
+out-tsc/
+.angular/
+*.log
+desktop/e2e/shots/

@@ -1,0 +1,41 @@
+{
+  "name": "pr-sweep-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "author": "hazeliscoding",
+  "description": "pr-sweep desktop app (Electron) — team PR dashboard by sprint.",
+  "main": "dist/main/main/main.js",
+  "scripts": {
+    "build:main": "tsc -p tsconfig.json",
+    "start": "electron .",
+    "package": "electron-builder",
+    "package:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "electron": "^31.7.7",
+    "electron-builder": "^25.1.8",
+    "playwright-core": "^1.62.1",
+    "typescript": "~5.5.0"
+  },
+  "build": {
+    "appId": "dev.prsweep.app",
+    "productName": "pr-sweep",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
+  }
+}
