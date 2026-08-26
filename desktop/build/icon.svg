@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- pr-sweep mark: a feature branch merging into main.
+       Navy field #001740, gold main branch #d1a249, blue feature branch #98c6ff —
+       the app's light-theme primary/accent and dark-theme accent. -->
+  <rect width="512" height="512" rx="104" fill="#001740"/>
+  <!-- main branch -->
+  <path d="M176 176 V336" stroke="#d1a249" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <!-- feature branch curving into the merge commit -->
+  <path d="M336 180 V216 C336 300 250 330 204 352" stroke="#98c6ff" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <!-- commits: main tip, feature tip, merge commit -->
+  <circle cx="176" cy="136" r="44" fill="#d1a249"/>
+  <circle cx="336" cy="136" r="44" fill="#98c6ff"/>
+  <circle cx="176" cy="376" r="44" fill="#d1a249"/>
+</svg>

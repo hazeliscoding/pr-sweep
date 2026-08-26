@@ -27,12 +27,14 @@
     },
     "files": [
       "dist/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "win": {
       "target": [
         "portable"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable.${ext}"

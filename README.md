@@ -1,3 +1,5 @@
+<p align="center"><img src="desktop/build/icon.svg" width="120" alt="pr-sweep logo"></p>
+
 # pr-sweep
 
 A portable desktop PR dashboard for teams that work in sprints across many repos in one

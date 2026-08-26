@@ -22,6 +22,8 @@ async function createWindow(): Promise<void> {
     height: 900,
     backgroundColor: '#fefefe',
     autoHideMenuBar: true,
+    // Window + taskbar icon; shipped in the bundle (see electron-builder "files").
+    icon: path.join(app.getAppPath(), 'build', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
