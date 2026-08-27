@@ -24,8 +24,19 @@ import { BoardStore } from '../board.store';
             @for (p of store.profiles(); track p.id) {
               <tr>
                 <td>
-                  {{ p.name }}
-                  @if (p.id === store.activeProfile()?.id) { <span class="draft-tag">active</span> }
+                  @if (editingId() === p.id) {
+                    <input
+                      class="rename-input"
+                      [value]="editingName()"
+                      (input)="editingName.set($any($event.target).value)"
+                      (keydown.enter)="commitRename(p.id)"
+                      (keydown.escape)="cancelRename()"
+                      (blur)="commitRename(p.id)"
+                    />
+                  } @else {
+                    {{ p.name }}
+                    @if (p.id === store.activeProfile()?.id) { <span class="draft-tag">active</span> }
+                  }
                 </td>
                 <td>{{ p.org || '—' }}</td>
                 <td>
@@ -34,7 +45,7 @@ import { BoardStore } from '../board.store';
                   }
                 </td>
                 <td>
-                  <a href="#" (click)="rename($event, p.id, p.name)">rename</a>
+                  <a href="#" (click)="startRename($event, p.id, p.name)">rename</a>
                   @if (store.profiles().length > 1) {
                     · <a href="#" (click)="remove($event, p.id)">delete</a>
                   }
@@ -141,6 +152,8 @@ export class SettingsComponent {
   readonly store = inject(BoardStore);
   readonly newAuthor = signal('');
   readonly newProfile = signal('');
+  readonly editingId = signal<string | null>(null);
+  readonly editingName = signal('');
 
   addAuthor(): void {
     const login = this.newAuthor().trim();
@@ -166,10 +179,23 @@ export class SettingsComponent {
     void this.store.switchProfile(id);
   }
 
-  rename(e: Event, id: string, current: string): void {
+  startRename(e: Event, id: string, current: string): void {
     e.preventDefault();
-    const name = window.prompt('Rename profile', current);
+    this.editingName.set(current);
+    this.editingId.set(id);
+    // Focus the freshly-rendered input so blur/Enter behave as expected.
+    setTimeout(() => document.querySelector<HTMLInputElement>('.rename-input')?.focus(), 0);
+  }
+
+  commitRename(id: string): void {
+    if (this.editingId() !== id) return; // already committed/cancelled
+    const name = this.editingName().trim();
     if (name) this.store.renameProfile(id, name);
+    this.editingId.set(null);
+  }
+
+  cancelRename(): void {
+    this.editingId.set(null);
   }
 
   remove(e: Event, id: string): void {

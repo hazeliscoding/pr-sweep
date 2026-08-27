@@ -93,7 +93,16 @@ interface BoardSection {
             </thead>
             <tbody>
               @for (pr of section.rows; track pr.url) {
-                <tr class="clickable" (click)="store.openPr(pr)" [title]="pr.url">
+                <tr
+                  class="clickable"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-label]="'Open ' + pr.repo + '#' + pr.number + ' — ' + pr.title"
+                  [title]="pr.url"
+                  (click)="store.openPr(pr)"
+                  (keydown.enter)="store.openPr(pr)"
+                  (keydown.space)="store.openPr(pr); $event.preventDefault()"
+                >
                   <td class="pr-ref">{{ pr.repo }}#{{ pr.number }}</td>
                   <td>
                     {{ pr.title }}

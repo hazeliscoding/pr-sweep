@@ -15,8 +15,8 @@ import { BoardStore } from './board.store';
   template: `
     @if (store.needsToken()) {
       <div class="modal-overlay">
-        <div class="modal">
-          <h2>Connect GitHub</h2>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
+          <h2 id="onboardTitle">Connect GitHub</h2>
           <p>
             The board needs your GitHub organization and permission to read its pull requests.
             Credentials are stored encrypted on this machine and never leave it.

@@ -21,3 +21,5 @@ jobs:
       # Renderer AOT build + main-process tsc together are the typecheck.
       - name: Build
         run: npm run build
+      - name: Test
+        run: npm test

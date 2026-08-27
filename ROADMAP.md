@@ -33,10 +33,11 @@ it's clunky.
 - [x] Profile export/import (JSON) so one person can configure for the whole team
 - [x] Auto-migration of pre-v0.7 flat configs into a Default profile
 
-## v0.8 — Hardening
-- [ ] Unit tests for core services (config migration, review bucketing, query builder)
-- [ ] Screenshot driver running as a smoke test in CI
-- [ ] Keyboard navigation / accessibility pass
+## v0.8 — Hardening ✅
+- [x] Unit tests for core services (device-flow poll, config migration, query builder + bucketing)
+- [x] Tests run in CI on every PR and push
+- [x] Keyboard navigation / accessibility pass (focusable PR rows, dialog semantics, focus rings)
+- [ ] Screenshot driver as a CI smoke test *(deferred — needs a headed runner + token secret)*
 
 ## v0.9 → 1.0 — Polish and platforms
 - [ ] macOS / Linux builds
