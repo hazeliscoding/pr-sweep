@@ -54,6 +54,14 @@ First launch asks for your GitHub organization, then offers two ways to connect:
 
 Then add your team's GitHub logins in Settings and set the date range in the header.
 
+> **Private orgs & "Sign in with GitHub":** the first time someone signs in for a private
+> org that restricts third-party OAuth apps, GitHub shows a **"request access to `<org>`"**
+> prompt after they authorize — this is expected, not an error. An **org owner approves the
+> app once** (org **Settings → Third-party access → OAuth app access policy**), and from then
+> on every teammate can sign in normally. Until it's approved, the board will look empty even
+> though sign-in "succeeded"; that's the pending approval, not a bug. Public orgs need no
+> approval.
+
 ### Self-hosting the OAuth sign-in
 
 "Sign in with GitHub" needs a registered OAuth App's client ID. The public builds ship one; if
