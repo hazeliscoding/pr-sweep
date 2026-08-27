@@ -13,9 +13,9 @@ changes requested, what's approved, and what merged — this sprint.**
 
 - **Status board**: dense tables for Needs review · Changes requested · Approved · Merged,
   bucketed from GitHub's actual `reviewDecision` — no labels or manual bookkeeping.
-- **Sprint-aware**: sprint windows are configured in Settings and selectable in the header;
-  open PRs are scoped to activity within the sprint, merged PRs to the sprint's date range.
-  "Suggest next" prefills the next sprint from the last one's cadence.
+- **Date-range scoped**: pick From/To dates in the header and they persist; leave "To" empty
+  for an open-ended view. Open PRs are scoped to activity within the range, merged PRs to
+  merges within it — set the range to your sprint at sprint start and forget about it.
 - **Team-scoped**: aggregate PRs authored by a configurable list of GitHub logins
   (leave the list empty to see the whole org), with per-author filter chips and free-text search.
 - **Click a row** → PR opens in your browser.
@@ -35,7 +35,7 @@ First launch asks for:
    an unauthorized token gets no errors from GitHub's API, just silently empty results, and
    pr-sweep detects and explains this instead of showing an empty board.
 
-Then add your team's GitHub logins and sprint dates in Settings.
+Then add your team's GitHub logins in Settings and set the date range in the header.
 
 ## Development
 

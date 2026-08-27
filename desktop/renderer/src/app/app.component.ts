@@ -26,17 +26,23 @@ const THEME_KEY = 'prsweep-theme';
             <span class="header-status">updated {{ ageLabel(store.fetchedAgeMin()!) }}</span>
           }
           <label>
-            Sprint
-            <select
+            From
+            <input
+              type="date"
               [disabled]="store.loading()"
-              (change)="store.selectSprint($any($event.target).value)"
-            >
-              <!-- [selected] per option, not [value] on the select: the sprint list
-                   arrives async, and a value applied before options exist is lost. -->
-              @for (s of store.sprints(); track s.id) {
-                <option [value]="s.id" [selected]="s.id === store.sprint()?.id">{{ s.name }}</option>
-              }
-            </select>
+              [value]="store.range()?.start ?? ''"
+              (change)="store.setRange({ start: $any($event.target).value })"
+            />
+          </label>
+          <label>
+            To
+            <input
+              type="date"
+              title="Leave empty for an open-ended view (until now)"
+              [disabled]="store.loading()"
+              [value]="store.range()?.end ?? ''"
+              (change)="store.setRange({ end: $any($event.target).value || null })"
+            />
           </label>
           <button class="btn-primary" [disabled]="store.loading()" (click)="store.refresh()">
             {{ store.loading() ? 'Sweeping…' : 'Refresh' }}
@@ -69,8 +75,11 @@ export class AppComponent {
 
   readonly pageTitle = computed(() => {
     if (this.url().includes('settings')) return 'Settings';
-    const sprint = this.store.sprint();
-    return sprint ? `Pull requests — ${sprint.name}` : 'Pull requests';
+    const range = this.store.range();
+    if (!range?.start) return 'Pull requests';
+    return range.end
+      ? `Pull requests — ${dateLabel(range.start)} to ${dateLabel(range.end)}`
+      : `Pull requests — since ${dateLabel(range.start)}`;
   });
 
   constructor() {
@@ -97,6 +106,14 @@ export class AppComponent {
     const h = Math.floor(min / 60);
     return h < 48 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
   }
+}
+
+/** "2026-08-09" → "Aug 9" (with year when it isn't the current one). */
+function dateLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString('en-US', opts);
 }
 
 /** Stored choice wins; first run follows the OS. */

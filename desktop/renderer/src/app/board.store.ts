@@ -1,8 +1,8 @@
 import { Injectable, computed, signal } from '@angular/core';
 import {
   AuthStatus,
+  DateRange,
   PrRow,
-  Sprint,
   SweepConfig,
   SweepConfigPatch,
   SweepResult,
@@ -25,19 +25,13 @@ export class BoardStore {
   readonly result = signal<SweepResult | null>(null);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
-  readonly selectedSprintId = signal<string | null>(null);
   /** Author chips: empty set = everyone. */
   readonly authorFilter = signal<ReadonlySet<string>>(new Set());
   readonly search = signal('');
 
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-  readonly sprints = computed<Sprint[]>(() => this.config()?.sprints ?? []);
-
-  readonly sprint = computed<Sprint | null>(() => {
-    const sprints = this.sprints();
-    return sprints.find((s) => s.id === this.selectedSprintId()) ?? sprints[sprints.length - 1] ?? null;
-  });
+  readonly range = computed<DateRange | null>(() => this.config()?.range ?? null);
 
   /** True until a token is stored and fully working — drives the onboarding overlay. */
   readonly needsToken = computed(() => {
@@ -81,7 +75,6 @@ export class BoardStore {
       const [config, auth] = await Promise.all([this.api.getConfig(), this.api.authStatus()]);
       this.config.set(config);
       this.auth.set(auth);
-      this.selectedSprintId.set(pickCurrentSprint(config.sprints)?.id ?? null);
       if (auth.login) await this.refresh();
       this.armAutoRefresh();
     } catch (e) {
@@ -90,12 +83,12 @@ export class BoardStore {
   }
 
   async refresh(opts: { auto?: boolean } = {}): Promise<void> {
-    const sprint = this.sprint();
-    if (!sprint || this.loading()) return;
+    const range = this.range();
+    if (!range?.start || this.loading()) return;
     this.loading.set(true);
     if (!opts.auto) this.error.set(null);
     try {
-      this.result.set(await this.api.fetchPrs({ start: sprint.start, end: sprint.end }));
+      this.result.set(await this.api.fetchPrs(range));
       this.error.set(null);
     } catch (e) {
       // A background refresh failing (laptop offline) shouldn't blank a board
@@ -106,8 +99,13 @@ export class BoardStore {
     }
   }
 
-  selectSprint(id: string): void {
-    this.selectedSprintId.set(id);
+  /** Persist a range edit and refetch. An empty end means open-ended. */
+  setRange(patch: Partial<DateRange>): void {
+    const current = this.range() ?? { start: '', end: null };
+    const next: DateRange = { ...current, ...patch };
+    if (!next.start) return;
+    if (next.end && next.end < next.start) next.end = null;
+    this.patchConfig({ range: next });
     void this.refresh();
   }
 
@@ -158,14 +156,6 @@ export class BoardStore {
       this.refreshTimer = setInterval(() => void this.refresh({ auto: true }), minutes * 60_000);
     }
   }
-}
-
-/** The sprint containing today, else the latest one (between sprints / config drift). */
-function pickCurrentSprint(sprints: Sprint[]): Sprint | null {
-  const today = new Date().toISOString().slice(0, 10);
-  return (
-    sprints.find((s) => s.start <= today && today <= s.end) ?? sprints[sprints.length - 1] ?? null
-  );
 }
 
 function byNewest(key: (r: PrRow) => string): (a: PrRow, b: PrRow) => number {

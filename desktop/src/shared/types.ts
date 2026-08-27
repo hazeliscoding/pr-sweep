@@ -5,19 +5,21 @@
  * it — adding a feature means touching all three.
  */
 
-/** A sprint window. Dates are ISO `yyyy-mm-dd`, both ends inclusive. */
-export interface Sprint {
-  id: string;
-  name: string;
+/**
+ * The board's date window. Dates are ISO `yyyy-mm-dd`, inclusive. A null end
+ * means open-ended: "from start until now" — the friendly default, since it
+ * never goes stale.
+ */
+export interface DateRange {
   start: string;
-  end: string;
+  end: string | null;
 }
 
 export interface SweepConfig {
   org: string;
   /** GitHub logins whose PRs the dashboard aggregates. */
   authors: string[];
-  sprints: Sprint[];
+  range: DateRange;
   /** 0 disables auto-refresh. */
   autoRefreshMinutes: number;
 }
@@ -44,14 +46,9 @@ export interface PrRow {
   requestedReviewers: string[];
 }
 
-export interface SprintWindow {
-  start: string;
-  end: string;
-}
-
 export interface SweepResult {
   fetchedAt: string;
-  window: SprintWindow;
+  range: DateRange;
   open: PrRow[];
   merged: PrRow[];
 }
@@ -69,6 +66,6 @@ export interface PrSweepApi {
   authStatus(): Promise<AuthStatus>;
   setToken(token: string): Promise<AuthStatus>;
   clearToken(): Promise<AuthStatus>;
-  fetchPrs(window: SprintWindow): Promise<SweepResult>;
+  fetchPrs(range: DateRange): Promise<SweepResult>;
   openExternal(url: string): Promise<void>;
 }

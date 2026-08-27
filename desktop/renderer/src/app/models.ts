@@ -4,17 +4,16 @@
  * gil-sweep). Keep the two files in sync when the IPC contract changes.
  */
 
-export interface Sprint {
-  id: string;
-  name: string;
+export interface DateRange {
   start: string;
-  end: string;
+  /** null = open-ended ("from start until now"). */
+  end: string | null;
 }
 
 export interface SweepConfig {
   org: string;
   authors: string[];
-  sprints: Sprint[];
+  range: DateRange;
   autoRefreshMinutes: number;
 }
 
@@ -39,14 +38,9 @@ export interface PrRow {
   requestedReviewers: string[];
 }
 
-export interface SprintWindow {
-  start: string;
-  end: string;
-}
-
 export interface SweepResult {
   fetchedAt: string;
-  window: SprintWindow;
+  range: DateRange;
   open: PrRow[];
   merged: PrRow[];
 }
@@ -63,6 +57,6 @@ export interface PrSweepApi {
   authStatus(): Promise<AuthStatus>;
   setToken(token: string): Promise<AuthStatus>;
   clearToken(): Promise<AuthStatus>;
-  fetchPrs(window: SprintWindow): Promise<SweepResult>;
+  fetchPrs(range: DateRange): Promise<SweepResult>;
   openExternal(url: string): Promise<void>;
 }

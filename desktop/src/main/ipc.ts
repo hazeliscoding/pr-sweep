@@ -10,7 +10,7 @@ import { ipcMain, shell } from 'electron';
 import { ConfigService } from './core/config.service';
 import { GithubService } from './core/github.service';
 import { TokenStore } from './core/token.store';
-import { AuthStatus, SprintWindow, SweepConfigPatch } from '../shared/types';
+import { AuthStatus, DateRange, SweepConfigPatch } from '../shared/types';
 
 export interface Services {
   config: ConfigService;
@@ -36,8 +36,8 @@ export function registerIpc(services: Services): void {
     return { hasToken: false, login: null, error: null };
   });
 
-  ipcMain.handle('prs:fetch', (_e, window: SprintWindow) =>
-    services.github.sweep(services.config.get(), window),
+  ipcMain.handle('prs:fetch', (_e, range: DateRange) =>
+    services.github.sweep(services.config.get(), range),
   );
 
   ipcMain.handle('shell:open', (_e, url: string) => {

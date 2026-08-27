@@ -11,7 +11,7 @@
  *    uses a hyphen) — we don't use review: qualifiers here (bucketing is done
  *    from reviewDecision), but keep this in mind if adding filters.
  */
-import { PrRow, ReviewBucket, SprintWindow, SweepConfig, SweepResult } from '../../shared/types';
+import { DateRange, PrRow, ReviewBucket, SweepConfig, SweepResult } from '../../shared/types';
 
 const GRAPHQL_URL = 'https://api.github.com/graphql';
 const PAGE_SIZE = 50;
@@ -84,18 +84,19 @@ export class GithubService {
     }
   }
 
-  async sweep(config: SweepConfig, window: SprintWindow): Promise<SweepResult> {
+  async sweep(config: SweepConfig, range: DateRange): Promise<SweepResult> {
     if (!config.org) throw new Error('No GitHub organization configured — set one in Settings.');
     const authors = config.authors.length
       ? `(${config.authors.map((a) => `author:${a}`).join(' OR ')})`
       : '';
-    const openQ = `org:${config.org} is:pr is:open draft:false updated:>=${window.start} ${authors}`;
-    const mergedQ = `org:${config.org} is:pr is:merged merged:${window.start}..${window.end} ${authors}`;
+    const merged_ = range.end ? `merged:${range.start}..${range.end}` : `merged:>=${range.start}`;
+    const openQ = `org:${config.org} is:pr is:open draft:false updated:>=${range.start} ${authors}`;
+    const mergedQ = `org:${config.org} is:pr is:merged ${merged_} ${authors}`;
 
     const [open, merged] = await Promise.all([this.searchAll(openQ), this.searchAll(mergedQ)]);
     return {
       fetchedAt: new Date().toISOString(),
-      window,
+      range,
       open: open.map((n) => toRow(n, bucketOf(n))),
       merged: merged.map((n) => toRow(n, 'merged')),
     };

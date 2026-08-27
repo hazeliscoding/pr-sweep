@@ -68,14 +68,7 @@ if (process.env.PRSWEEP_DEMO) {
     {
       org: 'electron',
       authors: ['MarshallOfSound', 'codebytere', 'deepak1556', 'YUCLing', 'Bloomca'],
-      sprints: [
-        {
-          id: 'demo',
-          name: 'Sprint 12',
-          start: new Date(Date.now() - 30 * day).toISOString().slice(0, 10),
-          end: new Date(Date.now() + day).toISOString().slice(0, 10),
-        },
-      ],
+      range: { start: new Date(Date.now() - 30 * day).toISOString().slice(0, 10), end: null },
       autoRefreshMinutes: 5,
     },
   );

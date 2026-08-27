@@ -35,7 +35,7 @@ interface BoardSection {
         <div class="kpi-value">{{ store.approved().length }}</div>
       </div>
       <div class="kpi kpi-merged">
-        <div class="kpi-label">Merged · {{ store.sprint()?.name ?? 'sprint' }}</div>
+        <div class="kpi-label">Merged in range</div>
         <div class="kpi-value">{{ store.merged().length }}</div>
       </div>
     </div>
