@@ -19,6 +19,8 @@ export function defaultConfig(): SweepConfig {
     autoRefreshMinutes: 5,
     includeDrafts: false,
     staleDays: 5,
+    notifications: true,
+    closeToTray: true,
   };
 }
 
@@ -37,6 +39,8 @@ export class ConfigService {
         autoRefreshMinutes: stored.autoRefreshMinutes ?? base.autoRefreshMinutes,
         includeDrafts: stored.includeDrafts ?? base.includeDrafts,
         staleDays: stored.staleDays ?? base.staleDays,
+        notifications: stored.notifications ?? base.notifications,
+        closeToTray: stored.closeToTray ?? base.closeToTray,
       };
     } catch {
       return defaultConfig();

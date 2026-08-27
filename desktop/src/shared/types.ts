@@ -26,6 +26,10 @@ export interface SweepConfig {
   includeDrafts: boolean;
   /** Flag open PRs untouched for this many days. 0 disables. */
   staleDays: number;
+  /** Fire a desktop notification when a new PR lands in your review queue. */
+  notifications: boolean;
+  /** Closing the window hides to tray (keeps watching) instead of quitting. */
+  closeToTray: boolean;
 }
 
 export type SweepConfigPatch = Partial<SweepConfig>;
@@ -78,5 +82,7 @@ export interface PrSweepApi {
   fetchPrs(range: DateRange): Promise<SweepResult>;
   /** Last sweep cached on disk, or null — for instant boot before the live refresh lands. */
   latestSweep(): Promise<SweepResult | null>;
+  /** Push the latest queue to the tray for counts + review-request toasts. */
+  syncTray(sync: { queue: PrRow[]; needsReviewCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
 }

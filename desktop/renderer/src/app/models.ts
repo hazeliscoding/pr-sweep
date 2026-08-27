@@ -17,6 +17,8 @@ export interface SweepConfig {
   autoRefreshMinutes: number;
   includeDrafts: boolean;
   staleDays: number;
+  notifications: boolean;
+  closeToTray: boolean;
 }
 
 export type SweepConfigPatch = Partial<SweepConfig>;
@@ -64,5 +66,6 @@ export interface PrSweepApi {
   clearToken(): Promise<AuthStatus>;
   fetchPrs(range: DateRange): Promise<SweepResult>;
   latestSweep(): Promise<SweepResult | null>;
+  syncTray(sync: { queue: PrRow[]; needsReviewCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
 }

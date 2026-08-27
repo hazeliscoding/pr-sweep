@@ -111,8 +111,14 @@ export class BoardStore {
     this.loading.set(true);
     if (!opts.auto) this.error.set(null);
     try {
-      this.result.set(await this.api.fetchPrs(range));
+      const result = await this.api.fetchPrs(range);
+      this.result.set(result);
       this.error.set(null);
+      // Hand the queue to the tray (counts + review-request toasts). The needs-
+      // review count uses the raw result, not the filtered view, so background
+      // toasts don't depend on whatever author/text filter is active.
+      const needsReview = result.open.filter((r) => r.bucket === 'needs-review').length;
+      void this.api.syncTray({ queue: result.queue, needsReviewCount: needsReview });
     } catch (e) {
       // A background refresh failing (laptop offline) shouldn't blank a board
       // that's already showing data — surface quietly only for manual actions.

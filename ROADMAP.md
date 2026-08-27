@@ -17,9 +17,10 @@ it's clunky.
 - [x] Show-drafts toggle
 - [x] Stale-PR aging cues (untouched > N days flagged, threshold configurable)
 
-## v0.5 — Notifications
-- [ ] Tray icon with a needs-review badge count
-- [ ] Toast when something new lands in your queue
+## v0.5 — Notifications ✅
+- [x] Tray icon with live queue/needs-review counts (alert-badged when your queue is non-empty)
+- [x] Desktop toast when a new PR lands in your review queue (click opens the PR)
+- [x] Close-to-tray so the app keeps sweeping in the background
 
 ## v0.6 — Auth without the PAT dance
 - [ ] GitHub Device Flow OAuth (no token copy/paste, no SSO-blind-PAT trap)

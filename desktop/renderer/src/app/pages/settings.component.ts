@@ -70,6 +70,22 @@ import { BoardStore } from '../board.store';
             (change)="store.patchConfig({ staleDays: +$any($event.target).value })"
           />
         </label>
+        <label class="check">
+          <input
+            type="checkbox"
+            [checked]="store.config()?.notifications ?? true"
+            (change)="store.patchConfig({ notifications: $any($event.target).checked })"
+          />
+          Notify me when a PR lands in my review queue
+        </label>
+        <label class="check">
+          <input
+            type="checkbox"
+            [checked]="store.config()?.closeToTray ?? true"
+            (change)="store.patchConfig({ closeToTray: $any($event.target).checked })"
+          />
+          Keep running in the tray when I close the window
+        </label>
       </section>
     </div>
   `,

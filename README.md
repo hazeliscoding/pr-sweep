@@ -24,6 +24,9 @@ changes requested, what's approved, and what merged — this sprint.**
 - ⚡ **Instant boot** — the last sweep is cached to disk and shown immediately on launch,
   then refreshed quietly in the background.
 - 🔗 **Click a row** → PR opens in your browser.
+- 🔔 **Tray + notifications** — lives in the system tray with live counts and a desktop toast
+  when a PR lands in your review queue (click it to open the PR). Closing the window keeps it
+  running in the tray so it keeps watching.
 - 🔄 Auto-refresh (default every 5 min), manual Refresh button.
 - 🌗 Light/dark theme toggle; follows the OS on first run, choice persists per machine.
 - 🔐 Token stored encrypted at rest (Windows DPAPI via Electron safeStorage) — it never

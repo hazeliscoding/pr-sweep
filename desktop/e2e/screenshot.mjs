@@ -72,19 +72,24 @@ if (process.env.PRSWEEP_DEMO) {
       autoRefreshMinutes: 5,
       includeDrafts: false,
       staleDays: 5,
+      notifications: true,
+      closeToTray: true,
     },
   );
   // Relaunch so the app boots cleanly from the demo config (reload() doesn't
   // survive the file:// + hash-routing combo in the packaged renderer).
   await app.close();
   ({ app, win } = await launch());
+  // Deterministic: drive an explicit sweep rather than racing the boot one.
+  await win.locator('.header-status, .btn-primary').first().waitFor({ timeout: 20_000 });
+  await win.locator('.btn-primary').click();
 }
 
 // Board is populated once any PR row renders (or give up and shoot anyway).
 await win
   .locator('td.pr-ref')
   .first()
-  .waitFor({ timeout: 30_000 })
+  .waitFor({ timeout: 60_000 })
   .catch(() => console.warn('no PR rows appeared — screenshotting as-is'));
 await win.evaluate(() => {
   localStorage.setItem('prsweep-theme', 'light');

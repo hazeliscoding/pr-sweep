@@ -284,6 +284,8 @@ label { font-size: var(--fs-dense); color: var(--color-text-secondary); }
 .settings h2 { font-size: var(--fs-h3); }
 .field { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
 .field input { max-width: 260px; }
+.check { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); font-size: var(--fs-dense); color: var(--color-text-secondary); }
+.check input { width: auto; }
 .tag-list { list-style: none; display: flex; gap: var(--space-3); flex-wrap: wrap; padding: 0; margin: var(--space-4) 0; }
 .tag-list li {
   display: flex; align-items: center; gap: var(--space-2);

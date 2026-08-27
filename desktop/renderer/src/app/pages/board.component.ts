@@ -151,10 +151,10 @@ export class BoardComponent {
       emptyNote: 'None ready to merge.',
     },
     {
-      title: 'Merged this sprint',
+      title: 'Merged in range',
       rows: this.store.merged(),
       merged: true,
-      emptyNote: 'Nothing merged yet this sprint.',
+      emptyNote: 'Nothing merged in this range yet.',
     },
   ]);
 

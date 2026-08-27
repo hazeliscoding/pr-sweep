@@ -1,17 +1,21 @@
 /**
  * Electron main-process entry point. Wires config + token + GitHub services to
- * the IPC handlers the renderer calls through window.api and creates the single
- * window. In dev it loads the Angular dev server (ELECTRON_RENDERER_URL) and
- * opens DevTools; packaged it loads the built renderer/index.html from disk.
+ * the IPC handlers the renderer calls through window.api, creates the single
+ * window, and runs the tray. With close-to-tray enabled (default), closing the
+ * window hides it so the app keeps sweeping and can toast review requests;
+ * quit for real via the tray menu. In dev it loads the Angular dev server
+ * (ELECTRON_RENDERER_URL) and opens DevTools; packaged it loads the built
+ * renderer/index.html from disk.
  */
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import { ConfigService } from './core/config.service';
 import { GithubService } from './core/github.service';
 import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
-import { registerIpc } from './ipc';
+import { registerIpc, Services } from './ipc';
+import { TrayController, TraySync } from './tray';
 
 // Keep the userData folder at %APPDATA%/pr-sweep even though the product now
 // displays as "PR Sweep" — existing configs and tokens must survive the rename.
@@ -19,6 +23,9 @@ import { registerIpc } from './ipc';
 app.setName('pr-sweep');
 
 let win: BrowserWindow | null = null;
+let tray: TrayController | null = null;
+let services: Services | null = null;
+let quitting = false;
 
 async function createWindow(): Promise<void> {
   win = new BrowserWindow({
@@ -35,6 +42,15 @@ async function createWindow(): Promise<void> {
     },
   });
 
+  // Close-to-tray: hide instead of destroy so sweeps and notifications keep
+  // running. A real quit (tray menu / app.quit) sets `quitting` via before-quit.
+  win.on('close', (e) => {
+    if (!quitting && services?.config.get().closeToTray) {
+      e.preventDefault();
+      win?.hide();
+    }
+  });
+
   const devUrl = process.env.ELECTRON_RENDERER_URL;
   if (devUrl) {
     await win.loadURL(devUrl);
@@ -48,17 +64,45 @@ async function createWindow(): Promise<void> {
   });
 }
 
+function showWindow(): void {
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  } else {
+    void createWindow();
+  }
+}
+
+app.on('before-quit', () => {
+  quitting = true;
+});
+
 app.whenReady().then(async () => {
   if (process.platform === 'win32') app.setAppUserModelId('dev.prsweep.app');
 
   const userDataDir = app.getPath('userData');
   const tokens = new TokenStore(path.join(userDataDir, 'token.bin'));
-  registerIpc({
+  services = {
     config: new ConfigService(path.join(userDataDir, 'config.json')),
     tokens,
     github: new GithubService(() => tokens.get()),
     snapshots: new SnapshotStore(path.join(userDataDir, 'snapshot.json')),
-  });
+  };
+  registerIpc(services);
+
+  // The renderer pushes its queue after each sweep; the tray turns it into
+  // counts + toasts. A tray failure (e.g. no system tray) must never take the
+  // app down, so degrade quietly to no tray.
+  try {
+    tray = new TrayController(services.config, showWindow, () => app.quit());
+    tray.init();
+    ipcMain.handle('tray:sync', (_e, sync: TraySync) => tray?.sync(sync));
+  } catch (e) {
+    console.warn('[pr-sweep] tray unavailable:', (e as Error).message);
+    ipcMain.handle('tray:sync', () => void 0);
+  }
+
   await createWindow();
 
   // Auto-update: installed builds only. The portable exe has no update story
@@ -75,5 +119,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  // With close-to-tray the window only hides, so reaching here means the user
+  // really closed everything (toggle off) — quit like a normal app.
+  if (!services?.config.get().closeToTray && process.platform !== 'darwin') app.quit();
 });
