@@ -29,6 +29,14 @@ jobs:
       - name: Package
         shell: bash
         run: cd desktop && npx electron-builder --win --publish never
+        env:
+          # Azure Trusted Signing — electron-builder authenticates via
+          # EnvironmentCredential and auto-installs the TrustedSigning PowerShell
+          # module on the runner. See desktop/package.json > build.win.azureSignOptions.
+          # Signing runs before latest.yml is generated, so update hashes stay valid.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       - name: Publish release
         shell: bash
         env:

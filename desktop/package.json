@@ -1,6 +1,6 @@
 {
   "name": "pr-sweep-desktop",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "author": "hazeliscoding",
   "description": "PR Sweep — a desktop PR dashboard for teams working across a GitHub organization.",
@@ -43,7 +43,14 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "azureSignOptions": {
+        "endpoint": "https://eus.codesigning.azure.net/",
+        "codeSigningAccountName": "ezmoney-signing",
+        "certificateProfileName": "EZMoneyCert",
+        "TimestampRfc3161": "http://timestamp.acs.microsoft.com",
+        "TimestampDigest": "SHA256"
+      }
     },
     "nsis": {
       "oneClick": false,

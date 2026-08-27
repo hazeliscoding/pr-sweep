@@ -42,5 +42,5 @@ it's clunky.
 ## v0.9 → 1.0 — Polish and platforms
 - [ ] macOS / Linux builds
 - [ ] Performance for orgs with huge PR volume (caching, smarter pagination)
-- [ ] Code signing
+- [x] Code signing (Azure Trusted Signing in the release workflow, same signing account as ez-money)
 - [ ] 1.0 when auto-update has proven itself across a few releases

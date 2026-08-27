@@ -43,8 +43,9 @@ Grab a build from [Releases](../../releases) — the **setup exe** installs PR S
 entry, self-updating on new releases) and the **portable exe** just runs with no install (but
 doesn't self-update). Or build it yourself (below).
 
-> **SmartScreen note:** the builds aren't code-signed, so Windows may warn on first run —
-> click *More info → Run anyway*. Signing is on the [roadmap](ROADMAP.md).
+> **SmartScreen note:** builds are code-signed (Azure Trusted Signing) as of v0.9. If
+> SmartScreen still warns while the certificate builds reputation, click *More info → Run
+> anyway*. Builds you compile yourself are unsigned unless you configure your own signing.
 
 First launch asks for your GitHub organization, then offers two ways to connect:
 
@@ -86,6 +87,12 @@ npm run dev          # Angular dev server (:4301) + Electron with live reload
 ```
 npm run package:win  # builds renderer + main, emits desktop/release/pr-sweep-*-portable.exe
 ```
+
+Release builds are signed via **Azure Trusted Signing** (`desktop/package.json` →
+`build.win.azureSignOptions`; account `ezmoney-signing`, profile `EZMoneyCert` — shared
+with ez-money). CI authenticates with a service principal through the `AZURE_TENANT_ID`,
+`AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` repo secrets; local packaging skips signing
+unless those env vars are set.
 
 ## 🏗️ Architecture
 
