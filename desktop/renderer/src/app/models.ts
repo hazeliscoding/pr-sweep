@@ -10,13 +10,22 @@ export interface DateRange {
   end: string | null;
 }
 
-export interface SweepConfig {
+export interface Profile {
+  id: string;
+  name: string;
   org: string;
   authors: string[];
   range: DateRange;
-  autoRefreshMinutes: number;
   includeDrafts: boolean;
   staleDays: number;
+}
+
+export type ProfilePatch = Partial<Omit<Profile, 'id'>>;
+
+export interface SweepConfig {
+  profiles: Profile[];
+  activeProfileId: string;
+  autoRefreshMinutes: number;
   notifications: boolean;
   closeToTray: boolean;
   oauthClientId: string;
@@ -77,4 +86,6 @@ export interface PrSweepApi {
   latestSweep(): Promise<SweepResult | null>;
   syncTray(sync: { queue: PrRow[]; needsReviewCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
+  exportProfiles(): Promise<boolean>;
+  importProfiles(): Promise<SweepConfig | null>;
 }

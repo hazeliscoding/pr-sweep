@@ -6,14 +6,15 @@
  * Handlers are thin: unwrap args, delegate to a service. Business logic stays
  * in core/ where it's testable without Electron.
  */
-import { ipcMain, shell } from 'electron';
-import { ConfigService } from './core/config.service';
+import { dialog, ipcMain, shell } from 'electron';
+import { readFileSync, writeFileSync } from 'fs';
+import { activeProfile, ConfigService } from './core/config.service';
 import { GithubService } from './core/github.service';
 import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
 import { pollForToken, requestDeviceCode } from './core/oauth.service';
 import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
-import { AuthStatus, DateRange, SweepConfigPatch } from '../shared/types';
+import { AuthStatus, DateRange, Profile, SweepConfigPatch } from '../shared/types';
 
 export interface Services {
   config: ConfigService;
@@ -67,6 +68,38 @@ export function registerIpc(services: Services): void {
     if (/^https:\/\/github\.com\//.test(String(url))) return shell.openExternal(url);
     return Promise.resolve();
   });
+
+  // Export/import the shareable profiles only — never the token or machine prefs.
+  ipcMain.handle('config:export', async () => {
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Export profiles',
+      defaultPath: 'pr-sweep-profiles.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (canceled || !filePath) return false;
+    const payload = { kind: 'pr-sweep-profiles', version: 1, profiles: services.config.get().profiles };
+    writeFileSync(filePath, JSON.stringify(payload, null, 2));
+    return true;
+  });
+  ipcMain.handle('config:import', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Import profiles',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (canceled || !filePaths[0]) return null;
+    const parsed = JSON.parse(readFileSync(filePaths[0], 'utf8'));
+    const incoming: Profile[] = Array.isArray(parsed?.profiles) ? parsed.profiles : [];
+    if (!incoming.length) throw new Error('No profiles found in that file.');
+    const config = services.config.get();
+    // Append imported profiles under fresh ids (names may collide; that's fine),
+    // and switch to the first one so the import is immediately visible.
+    const added = incoming.map((p, i) => ({ ...p, id: `imported-${Date.now()}-${i}` }));
+    return services.config.set({
+      profiles: [...config.profiles, ...added],
+      activeProfileId: added[0].id,
+    });
+  });
 }
 
 /** Per-install override wins over the baked-in default (either may be empty). */
@@ -77,7 +110,7 @@ function oauthClientId(services: Services): string {
 async function authStatus(services: Services): Promise<AuthStatus> {
   if (!services.tokens.get()) return { hasToken: false, login: null, error: null };
   try {
-    const org = services.config.get().org;
+    const org = activeProfile(services.config.get()).org;
     // Both probes hit the network; run them together — this check gates first
     // paint of live data on every boot.
     const [login, orgOk] = await Promise.all([

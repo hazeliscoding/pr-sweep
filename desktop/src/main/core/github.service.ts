@@ -12,6 +12,7 @@
  *    from reviewDecision), but keep this in mind if adding filters.
  */
 import { DateRange, PrRow, ReviewBucket, SweepConfig, SweepResult } from '../../shared/types';
+import { activeProfile } from './config.service';
 
 const GRAPHQL_URL = 'https://api.github.com/graphql';
 // GraphQL search's max page size — fewer round trips is the single biggest
@@ -95,18 +96,19 @@ export class GithubService {
   }
 
   async sweep(config: SweepConfig, range: DateRange): Promise<SweepResult> {
-    if (!config.org) throw new Error('No GitHub organization configured — set one in Settings.');
-    const authors = config.authors.length
-      ? `(${config.authors.map((a) => `author:${a}`).join(' OR ')})`
+    const profile = activeProfile(config);
+    if (!profile.org) throw new Error('No GitHub organization configured — set one in Settings.');
+    const authors = profile.authors.length
+      ? `(${profile.authors.map((a) => `author:${a}`).join(' OR ')})`
       : '';
-    const drafts = config.includeDrafts ? '' : 'draft:false';
+    const drafts = profile.includeDrafts ? '' : 'draft:false';
     const merged_ = range.end ? `merged:${range.start}..${range.end}` : `merged:>=${range.start}`;
-    const openQ = `org:${config.org} is:pr is:open ${drafts} updated:>=${range.start} ${authors}`;
-    const mergedQ = `org:${config.org} is:pr is:merged ${merged_} ${authors}`;
+    const openQ = `org:${profile.org} is:pr is:open ${drafts} updated:>=${range.start} ${authors}`;
+    const mergedQ = `org:${profile.org} is:pr is:merged ${merged_} ${authors}`;
     // The queue is deliberately unscoped by range and authors: if someone asked
     // for your review, you want to see it no matter whose PR it is or how old.
     const login = await this.viewer();
-    const queueQ = `org:${config.org} is:pr is:open ${drafts} review-requested:${login}`;
+    const queueQ = `org:${profile.org} is:pr is:open ${drafts} review-requested:${login}`;
 
     const [open, merged, queue] = await Promise.all([
       this.searchAll(openQ),
@@ -115,7 +117,7 @@ export class GithubService {
     ]);
     return {
       fetchedAt: new Date().toISOString(),
-      org: config.org,
+      org: profile.org,
       range,
       open: open.map((n) => toRow(n, bucketOf(n))),
       merged: merged.map((n) => toRow(n, 'merged')),

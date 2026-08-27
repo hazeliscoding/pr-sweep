@@ -57,7 +57,7 @@ interface BoardSection {
       }
       <button
         class="toggle"
-        [class.on]="store.config()?.includeDrafts"
+        [class.on]="store.activeProfile()?.includeDrafts"
         title="Include draft PRs"
         (click)="store.toggleDrafts()"
       >
@@ -159,12 +159,12 @@ export class BoardComponent {
   ]);
 
   authors(): string[] {
-    return this.store.config()?.authors ?? [];
+    return this.store.activeProfile()?.authors ?? [];
   }
 
   /** Untouched longer than the configured threshold (0 = feature off). */
   isStale(pr: PrRow): boolean {
-    const days = this.store.config()?.staleDays ?? 0;
+    const days = this.store.activeProfile()?.staleDays ?? 0;
     return days > 0 && Date.now() - Date.parse(pr.updatedAt) > days * 86_400_000;
   }
 

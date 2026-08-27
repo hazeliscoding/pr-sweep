@@ -63,15 +63,32 @@ let savedConfig = null;
 if (process.env.PRSWEEP_DEMO) {
   savedConfig = await win.evaluate(() => window.api.getConfig());
   const day = 86_400_000;
+  const start = new Date(Date.now() - 30 * day).toISOString().slice(0, 10);
   await win.evaluate(
     (c) => window.api.setConfig(c),
     {
-      org: 'electron',
-      authors: ['MarshallOfSound', 'codebytere', 'deepak1556', 'YUCLing', 'Bloomca'],
-      range: { start: new Date(Date.now() - 30 * day).toISOString().slice(0, 10), end: null },
+      profiles: [
+        {
+          id: 'demo',
+          name: 'Electron',
+          org: 'electron',
+          authors: ['MarshallOfSound', 'codebytere', 'deepak1556', 'YUCLing', 'Bloomca'],
+          range: { start, end: null },
+          includeDrafts: false,
+          staleDays: 5,
+        },
+        {
+          id: 'demo2',
+          name: 'Electron — infra',
+          org: 'electron',
+          authors: ['deepak1556'],
+          range: { start, end: null },
+          includeDrafts: false,
+          staleDays: 5,
+        },
+      ],
+      activeProfileId: 'demo',
       autoRefreshMinutes: 5,
-      includeDrafts: false,
-      staleDays: 5,
       notifications: true,
       closeToTray: true,
       oauthClientId: '',

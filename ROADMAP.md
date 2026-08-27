@@ -28,9 +28,10 @@ it's clunky.
 - [x] Client ID configurable per-install (Settings) for forks / self-hosters
 - [ ] Rate-limit backoff for large orgs *(deferred to a later release)*
 
-## v0.7 — Profiles & shared config
-- [ ] Multiple org/team profiles with a quick switcher
-- [ ] Config export/import so one person can configure for the whole team
+## v0.7 — Profiles & shared config ✅
+- [x] Multiple org/team profiles with a header switcher
+- [x] Profile export/import (JSON) so one person can configure for the whole team
+- [x] Auto-migration of pre-v0.7 flat configs into a Default profile
 
 ## v0.8 — Hardening
 - [ ] Unit tests for core services (config migration, review bucketing, query builder)

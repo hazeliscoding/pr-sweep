@@ -21,6 +21,9 @@ changes requested, what's approved, and what merged — this sprint.**
   for an open-ended view. Set the range at sprint start and forget about it.
 - 👥 **Team-scoped** — aggregate PRs authored by a configurable list of GitHub logins
   (leave the list empty to see the whole org), with per-author filter chips and free-text search.
+- 🗂️ **Profiles** — save multiple org/team/date-range views and switch between them from the
+  header. **Export/import** profiles as a JSON file so one person configures the team's view
+  and everyone else imports it (tokens are never included).
 - ⚡ **Instant boot** — the last sweep is cached to disk and shown immediately on launch,
   then refreshed quietly in the background.
 - 🔗 **Click a row** → PR opens in your browser.

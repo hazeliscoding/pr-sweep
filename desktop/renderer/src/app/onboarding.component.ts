@@ -26,7 +26,7 @@ import { BoardStore } from './board.store';
             GitHub organization
             <input
               placeholder="your-github-org"
-              [value]="org() || store.config()?.org || ''"
+              [value]="org() || store.activeProfile()?.org || ''"
               (input)="org.set($any($event.target).value)"
             />
           </div>
@@ -39,7 +39,7 @@ import { BoardStore } from './board.store';
                 <p class="muted">Waiting for you to authorize…</p>
               </div>
             } @else {
-              <button class="btn-primary btn-block" [disabled]="verifying() || !org().trim() && !store.config()?.org" (click)="signIn()">
+              <button class="btn-primary btn-block" [disabled]="verifying() || !org().trim() && !store.activeProfile()?.org" (click)="signIn()">
                 {{ verifying() ? 'Starting…' : 'Sign in with GitHub' }}
               </button>
             }
@@ -102,7 +102,7 @@ export class OnboardingComponent {
   }
 
   private hasOrg(): boolean {
-    return !!(this.org().trim() || this.store.config()?.org);
+    return !!(this.org().trim() || this.store.activeProfile()?.org);
   }
   tokenReady(): boolean {
     return !!this.token().trim() && this.hasOrg();
@@ -110,7 +110,7 @@ export class OnboardingComponent {
 
   private async persistOrg(): Promise<void> {
     const org = this.org().trim();
-    if (org && org !== this.store.config()?.org) await this.store.setOrg(org);
+    if (org && org !== this.store.activeProfile()?.org) await this.store.setOrg(org);
   }
 
   async signIn(): Promise<void> {

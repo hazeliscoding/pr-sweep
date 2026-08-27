@@ -22,6 +22,19 @@ const THEME_KEY = 'prsweep-theme';
       <header class="app-header">
         <h1 class="page-title">{{ pageTitle() }}</h1>
         <div class="header-right">
+          @if (store.profiles().length > 1) {
+            <label>
+              Profile
+              <select
+                [disabled]="store.loading()"
+                (change)="store.switchProfile($any($event.target).value)"
+              >
+                @for (p of store.profiles(); track p.id) {
+                  <option [value]="p.id" [selected]="p.id === store.activeProfile()?.id">{{ p.name }}</option>
+                }
+              </select>
+            </label>
+          }
           @if (store.fetchedAgeMin() !== null) {
             <span class="header-status">updated {{ ageLabel(store.fetchedAgeMin()!) }}</span>
           }
@@ -76,10 +89,13 @@ export class AppComponent {
   readonly pageTitle = computed(() => {
     if (this.url().includes('settings')) return 'Settings';
     const range = this.store.range();
-    if (!range?.start) return 'Pull requests';
+    // Prefix the active profile's name only when there's more than one.
+    const profiles = this.store.profiles();
+    const prefix = profiles.length > 1 ? `${this.store.activeProfile()?.name} · ` : '';
+    if (!range?.start) return `${prefix}Pull requests`;
     return range.end
-      ? `Pull requests — ${dateLabel(range.start)} to ${dateLabel(range.end)}`
-      : `Pull requests — since ${dateLabel(range.start)}`;
+      ? `${prefix}Pull requests — ${dateLabel(range.start)} to ${dateLabel(range.end)}`
+      : `${prefix}Pull requests — since ${dateLabel(range.start)}`;
   });
 
   constructor() {

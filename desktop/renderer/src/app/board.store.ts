@@ -3,6 +3,8 @@ import {
   AuthStatus,
   DateRange,
   PrRow,
+  Profile,
+  ProfilePatch,
   SweepConfig,
   SweepConfigPatch,
   SweepResult,
@@ -31,7 +33,16 @@ export class BoardStore {
 
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-  readonly range = computed<DateRange | null>(() => this.config()?.range ?? null);
+  readonly profiles = computed<Profile[]>(() => this.config()?.profiles ?? []);
+
+  /** The selected profile (org + team + window), or null before config loads. */
+  readonly activeProfile = computed<Profile | null>(() => {
+    const cfg = this.config();
+    if (!cfg) return null;
+    return cfg.profiles.find((p) => p.id === cfg.activeProfileId) ?? cfg.profiles[0] ?? null;
+  });
+
+  readonly range = computed<DateRange | null>(() => this.activeProfile()?.range ?? null);
 
   /** True until a token is stored and fully working — drives the onboarding overlay. */
   readonly needsToken = computed(() => {
@@ -88,11 +99,13 @@ export class BoardStore {
       // quietly replacing the stale data.
       const [config, snapshot] = await Promise.all([this.api.getConfig(), this.api.latestSweep()]);
       this.config.set(config);
+      const p = this.activeProfile();
       if (
         snapshot &&
-        snapshot.org === config.org &&
-        snapshot.range.start === config.range.start &&
-        (snapshot.range.end ?? null) === (config.range.end ?? null)
+        p &&
+        snapshot.org === p.org &&
+        snapshot.range.start === p.range.start &&
+        (snapshot.range.end ?? null) === (p.range.end ?? null)
       ) {
         this.result.set(snapshot);
       }
@@ -130,7 +143,7 @@ export class BoardStore {
 
   /** Drafts visibility is part of the search queries, so toggling refetches. */
   toggleDrafts(): void {
-    this.patchConfig({ includeDrafts: !this.config()?.includeDrafts });
+    this.patchProfile({ includeDrafts: !this.activeProfile()?.includeDrafts });
     void this.refresh();
   }
 
@@ -140,7 +153,7 @@ export class BoardStore {
     const next: DateRange = { ...current, ...patch };
     if (!next.start) return;
     if (next.end && next.end < next.start) next.end = null;
-    this.patchConfig({ range: next });
+    this.patchProfile({ range: next });
     void this.refresh();
   }
 
@@ -171,20 +184,104 @@ export class BoardStore {
   }
 
   /**
-   * Persist the org before token validation runs — the main process reads
-   * config from disk, so fire-and-forget here would race authStatus.
+   * Persist the org into the active profile before token validation runs — the
+   * main process reads config from disk, so fire-and-forget would race authStatus.
    */
   async setOrg(org: string): Promise<void> {
-    this.config.set(await this.api.setConfig({ org }));
+    const patch = this.withProfilePatch({ org });
+    if (patch) this.config.set(await this.api.setConfig(patch));
   }
 
-  /** Instant local update; persistence is fire-and-forget. */
+  /** Update a field on the active profile; instant local update, async persist. */
+  patchProfile(patch: ProfilePatch): void {
+    const cfg = this.withProfilePatch(patch);
+    if (!cfg) return;
+    this.config.set(cfg);
+    this.api.setConfig({ profiles: cfg.profiles }).catch(() => void 0);
+  }
+
+  /** Global (machine) settings — refresh cadence, notifications, tray, oauth. */
   patchConfig(patch: SweepConfigPatch): void {
     const current = this.config();
     if (!current) return;
     this.config.set({ ...current, ...patch });
     this.api.setConfig(patch).catch(() => void 0);
     if (patch.autoRefreshMinutes !== undefined) this.armAutoRefresh();
+  }
+
+  /** Build a full config with `patch` applied to the active profile (or null). */
+  private withProfilePatch(patch: ProfilePatch): SweepConfig | null {
+    const cfg = this.config();
+    const active = this.activeProfile();
+    if (!cfg || !active) return null;
+    const profiles = cfg.profiles.map((p) =>
+      p.id === active.id ? { ...p, ...patch, range: { ...p.range, ...(patch.range ?? {}) } } : p,
+    );
+    return { ...cfg, profiles };
+  }
+
+  // ----- profile management -----
+
+  async switchProfile(id: string): Promise<void> {
+    const cfg = this.config();
+    if (!cfg || id === cfg.activeProfileId) return;
+    this.config.set({ ...cfg, activeProfileId: id });
+    this.result.set(null);
+    void this.api.setConfig({ activeProfileId: id });
+    await this.refresh();
+  }
+
+  async addProfile(name: string): Promise<void> {
+    const cfg = this.config();
+    const active = this.activeProfile();
+    if (!cfg || !name.trim()) return;
+    // Seed from the active profile's org/range so a new team is a quick tweak.
+    const profile: Profile = {
+      id: `p-${Date.now()}-${Math.floor(Math.random() * 1e4)}`,
+      name: name.trim(),
+      org: active?.org ?? '',
+      authors: [],
+      range: active?.range ?? { start: new Date().toISOString().slice(0, 10), end: null },
+      includeDrafts: false,
+      staleDays: active?.staleDays ?? 5,
+    };
+    const next = { ...cfg, profiles: [...cfg.profiles, profile], activeProfileId: profile.id };
+    this.config.set(next);
+    this.result.set(null);
+    await this.api.setConfig({ profiles: next.profiles, activeProfileId: profile.id });
+    await this.refresh();
+  }
+
+  renameProfile(id: string, name: string): void {
+    const cfg = this.config();
+    if (!cfg || !name.trim()) return;
+    const profiles = cfg.profiles.map((p) => (p.id === id ? { ...p, name: name.trim() } : p));
+    this.config.set({ ...cfg, profiles });
+    void this.api.setConfig({ profiles });
+  }
+
+  async deleteProfile(id: string): Promise<void> {
+    const cfg = this.config();
+    if (!cfg || cfg.profiles.length <= 1) return; // never delete the last one
+    const profiles = cfg.profiles.filter((p) => p.id !== id);
+    const activeProfileId = cfg.activeProfileId === id ? profiles[0].id : cfg.activeProfileId;
+    const switched = activeProfileId !== cfg.activeProfileId;
+    this.config.set({ ...cfg, profiles, activeProfileId });
+    if (switched) this.result.set(null);
+    await this.api.setConfig({ profiles, activeProfileId });
+    if (switched) await this.refresh();
+  }
+
+  exportProfiles(): Promise<boolean> {
+    return this.api.exportProfiles();
+  }
+
+  async importProfiles(): Promise<void> {
+    const cfg = await this.api.importProfiles();
+    if (!cfg) return; // cancelled
+    this.config.set(cfg);
+    this.result.set(null);
+    await this.refresh();
   }
 
   openPr(row: PrRow): void {

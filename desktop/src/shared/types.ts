@@ -15,17 +15,31 @@ export interface DateRange {
   end: string | null;
 }
 
-export interface SweepConfig {
+/**
+ * A saved board definition — "which org + team + window am I looking at". The
+ * shareable unit: exporting config exports profiles (never tokens or machine
+ * preferences), so one person can configure the team's view and hand it out.
+ */
+export interface Profile {
+  id: string;
+  name: string;
   org: string;
-  /** GitHub logins whose PRs the dashboard aggregates. */
+  /** GitHub logins whose PRs the dashboard aggregates (empty = whole org). */
   authors: string[];
   range: DateRange;
-  /** 0 disables auto-refresh. */
-  autoRefreshMinutes: number;
   /** Include draft PRs on the board. */
   includeDrafts: boolean;
   /** Flag open PRs untouched for this many days. 0 disables. */
   staleDays: number;
+}
+
+export type ProfilePatch = Partial<Omit<Profile, 'id'>>;
+
+export interface SweepConfig {
+  profiles: Profile[];
+  activeProfileId: string;
+  /** 0 disables auto-refresh. */
+  autoRefreshMinutes: number;
   /** Fire a desktop notification when a new PR lands in your review queue. */
   notifications: boolean;
   /** Closing the window hides to tray (keeps watching) instead of quitting. */
@@ -99,4 +113,8 @@ export interface PrSweepApi {
   /** Push the latest queue to the tray for counts + review-request toasts. */
   syncTray(sync: { queue: PrRow[]; needsReviewCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
+  /** Write the profiles to a JSON file the user picks. Returns false if cancelled. */
+  exportProfiles(): Promise<boolean>;
+  /** Merge profiles from a JSON file the user picks. Returns the updated config, or null if cancelled. */
+  importProfiles(): Promise<SweepConfig | null>;
 }

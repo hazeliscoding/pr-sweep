@@ -24,6 +24,8 @@ const api: PrSweepApi = {
   latestSweep: () => ipcRenderer.invoke('prs:latest'),
   syncTray: (sync) => ipcRenderer.invoke('tray:sync', sync),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
+  exportProfiles: () => ipcRenderer.invoke('config:export'),
+  importProfiles: () => ipcRenderer.invoke('config:import'),
 };
 
 contextBridge.exposeInMainWorld('api', api);
