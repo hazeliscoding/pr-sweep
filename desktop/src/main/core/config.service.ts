@@ -12,7 +12,14 @@ import { DateRange, SweepConfig, SweepConfigPatch } from '../../shared/types';
  */
 export function defaultConfig(): SweepConfig {
   const start = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
-  return { org: '', authors: [], range: { start, end: null }, autoRefreshMinutes: 5 };
+  return {
+    org: '',
+    authors: [],
+    range: { start, end: null },
+    autoRefreshMinutes: 5,
+    includeDrafts: false,
+    staleDays: 5,
+  };
 }
 
 export class ConfigService {
@@ -28,6 +35,8 @@ export class ConfigService {
         authors: stored.authors ?? base.authors,
         range: normalizeRange(stored) ?? base.range,
         autoRefreshMinutes: stored.autoRefreshMinutes ?? base.autoRefreshMinutes,
+        includeDrafts: stored.includeDrafts ?? base.includeDrafts,
+        staleDays: stored.staleDays ?? base.staleDays,
       };
     } catch {
       return defaultConfig();

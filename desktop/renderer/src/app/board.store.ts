@@ -39,6 +39,17 @@ export class BoardStore {
     return !!auth && (!auth.login || !!auth.error);
   });
 
+  /**
+   * PRs waiting on *my* review — org-wide, so the author chips don't apply;
+   * only the free-text filter does.
+   */
+  readonly queue = computed(() => {
+    const q = this.search().trim().toLowerCase();
+    return (this.result()?.queue ?? [])
+      .filter((r) => !q || r.title.toLowerCase().includes(q) || r.repo.toLowerCase().includes(q))
+      .sort(byNewest((r) => r.updatedAt));
+  });
+
   readonly needsReview = computed(() => this.slice('needs-review'));
   readonly changesRequested = computed(() => this.slice('changes-requested'));
   readonly approved = computed(() => this.slice('approved'));
@@ -109,6 +120,12 @@ export class BoardStore {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Drafts visibility is part of the search queries, so toggling refetches. */
+  toggleDrafts(): void {
+    this.patchConfig({ includeDrafts: !this.config()?.includeDrafts });
+    void this.refresh();
   }
 
   /** Persist a range edit and refetch. An empty end means open-ended. */

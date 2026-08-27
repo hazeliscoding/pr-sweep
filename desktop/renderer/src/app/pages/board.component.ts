@@ -22,6 +22,10 @@ interface BoardSection {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="kpi-row">
+      <div class="kpi kpi-queue">
+        <div class="kpi-label">My queue</div>
+        <div class="kpi-value">{{ store.queue().length }}</div>
+      </div>
       <div class="kpi kpi-review">
         <div class="kpi-label">Needs review</div>
         <div class="kpi-value">{{ store.needsReview().length }}</div>
@@ -51,6 +55,14 @@ interface BoardSection {
           {{ login }}
         </button>
       }
+      <button
+        class="toggle"
+        [class.on]="store.config()?.includeDrafts"
+        title="Include draft PRs"
+        (click)="store.toggleDrafts()"
+      >
+        Drafts
+      </button>
       <span class="spacer"></span>
       <input
         class="search"
@@ -83,7 +95,12 @@ interface BoardSection {
               @for (pr of section.rows; track pr.url) {
                 <tr class="clickable" (click)="store.openPr(pr)" [title]="pr.url">
                   <td class="pr-ref">{{ pr.repo }}#{{ pr.number }}</td>
-                  <td>{{ pr.title }}</td>
+                  <td>
+                    {{ pr.title }}
+                    @if (pr.isDraft) {
+                      <span class="draft-tag">draft</span>
+                    }
+                  </td>
                   <td>{{ pr.author }}</td>
                   <td class="num">{{ pr.comments || '' }}</td>
                   <td class="num">
@@ -93,7 +110,7 @@ interface BoardSection {
                   @if (!section.merged) {
                     <td class="why">{{ pr.requestedReviewers.join(', ') }}</td>
                   }
-                  <td class="num">{{ ago(pr) }}</td>
+                  <td class="num" [class.stale]="!section.merged && isStale(pr)">{{ ago(pr) }}</td>
                 </tr>
               }
             </tbody>
@@ -109,6 +126,12 @@ export class BoardComponent {
   readonly store = inject(BoardStore);
 
   readonly sections = computed<BoardSection[]>(() => [
+    {
+      title: 'Waiting on my review',
+      rows: this.store.queue(),
+      merged: false,
+      emptyNote: 'Nothing waiting on you.',
+    },
     {
       title: 'Needs review',
       rows: this.store.needsReview(),
@@ -137,6 +160,12 @@ export class BoardComponent {
 
   authors(): string[] {
     return this.store.config()?.authors ?? [];
+  }
+
+  /** Untouched longer than the configured threshold (0 = feature off). */
+  isStale(pr: PrRow): boolean {
+    const days = this.store.config()?.staleDays ?? 0;
+    return days > 0 && Date.now() - Date.parse(pr.updatedAt) > days * 86_400_000;
   }
 
   ago(pr: PrRow): string {

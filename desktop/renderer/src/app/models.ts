@@ -15,6 +15,8 @@ export interface SweepConfig {
   authors: string[];
   range: DateRange;
   autoRefreshMinutes: number;
+  includeDrafts: boolean;
+  staleDays: number;
 }
 
 export type SweepConfigPatch = Partial<SweepConfig>;
@@ -26,6 +28,7 @@ export interface PrRow {
   number: number;
   title: string;
   url: string;
+  isDraft: boolean;
   author: string;
   authorAvatarUrl: string;
   bucket: ReviewBucket;
@@ -44,6 +47,7 @@ export interface SweepResult {
   range: DateRange;
   open: PrRow[];
   merged: PrRow[];
+  queue: PrRow[];
 }
 
 export interface AuthStatus {

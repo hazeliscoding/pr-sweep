@@ -70,6 +70,8 @@ if (process.env.PRSWEEP_DEMO) {
       authors: ['MarshallOfSound', 'codebytere', 'deepak1556', 'YUCLing', 'Bloomca'],
       range: { start: new Date(Date.now() - 30 * day).toISOString().slice(0, 10), end: null },
       autoRefreshMinutes: 5,
+      includeDrafts: false,
+      staleDays: 5,
     },
   );
   // Relaunch so the app boots cleanly from the demo config (reload() doesn't

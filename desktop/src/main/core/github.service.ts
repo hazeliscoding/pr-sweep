@@ -24,7 +24,7 @@ const SEARCH_QUERY = `
       pageInfo { hasNextPage endCursor }
       nodes {
         ... on PullRequest {
-          number title url createdAt updatedAt mergedAt
+          number title url isDraft createdAt updatedAt mergedAt
           reviewDecision totalCommentsCount additions deletions
           repository { name }
           author { login avatarUrl }
@@ -41,6 +41,7 @@ interface SearchNode {
   number: number;
   title: string;
   url: string;
+  isDraft: boolean;
   createdAt: string;
   updatedAt: string;
   mergedAt: string | null;
@@ -56,11 +57,18 @@ interface SearchNode {
 export class GithubService {
   constructor(private readonly token: () => string | null) {}
 
-  /** Validates the stored token; returns the login it authenticates as. */
+  /**
+   * Validates the stored token; returns the login it authenticates as.
+   * Memoized per token so sweeps can reuse it without an extra round trip.
+   */
   async viewer(): Promise<string> {
+    const token = this.token();
+    if (this.viewerCache && this.viewerCache.token === token) return this.viewerCache.login;
     const data = await this.graphql<{ viewer: { login: string } }>('query { viewer { login } }', {});
+    this.viewerCache = { token, login: data.viewer.login };
     return data.viewer.login;
   }
+  private viewerCache: { token: string | null; login: string } | null = null;
 
   /**
    * Whether the token can see the org at all. A valid token that isn't
@@ -91,17 +99,27 @@ export class GithubService {
     const authors = config.authors.length
       ? `(${config.authors.map((a) => `author:${a}`).join(' OR ')})`
       : '';
+    const drafts = config.includeDrafts ? '' : 'draft:false';
     const merged_ = range.end ? `merged:${range.start}..${range.end}` : `merged:>=${range.start}`;
-    const openQ = `org:${config.org} is:pr is:open draft:false updated:>=${range.start} ${authors}`;
+    const openQ = `org:${config.org} is:pr is:open ${drafts} updated:>=${range.start} ${authors}`;
     const mergedQ = `org:${config.org} is:pr is:merged ${merged_} ${authors}`;
+    // The queue is deliberately unscoped by range and authors: if someone asked
+    // for your review, you want to see it no matter whose PR it is or how old.
+    const login = await this.viewer();
+    const queueQ = `org:${config.org} is:pr is:open ${drafts} review-requested:${login}`;
 
-    const [open, merged] = await Promise.all([this.searchAll(openQ), this.searchAll(mergedQ)]);
+    const [open, merged, queue] = await Promise.all([
+      this.searchAll(openQ),
+      this.searchAll(mergedQ),
+      this.searchAll(queueQ),
+    ]);
     return {
       fetchedAt: new Date().toISOString(),
       org: config.org,
       range,
       open: open.map((n) => toRow(n, bucketOf(n))),
       merged: merged.map((n) => toRow(n, 'merged')),
+      queue: queue.map((n) => toRow(n, bucketOf(n))),
     };
   }
 
@@ -168,6 +186,7 @@ function toRow(n: SearchNode, bucket: ReviewBucket): PrRow {
     number: n.number,
     title: n.title,
     url: n.url,
+    isDraft: n.isDraft,
     author: n.author?.login ?? 'unknown',
     authorAvatarUrl: n.author?.avatarUrl ?? '',
     bucket,

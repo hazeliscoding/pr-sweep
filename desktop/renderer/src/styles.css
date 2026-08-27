@@ -107,6 +107,17 @@ tbody tr.clickable { cursor: pointer; }
 .secondary { color: var(--color-text-secondary); }
 
 td.pr-ref { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* aging cue: an open PR untouched past the configured threshold */
+td.stale { color: var(--color-warning); font-weight: var(--fw-bold); }
+.draft-tag {
+  font-size: var(--fs-caption);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-panel);
+  padding: 0 var(--space-2);
+  margin-left: var(--space-2);
+  white-space: nowrap;
+}
 td.why { font-size: var(--fs-caption); color: var(--color-text-secondary); line-height: var(--lh-dense); }
 
 /* ===== buttons ===== */
@@ -211,6 +222,8 @@ label { font-size: var(--fs-dense); color: var(--color-text-secondary); }
 }
 .kpi .kpi-label { font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-secondary); margin-bottom: var(--space-2); }
 .kpi .kpi-value { font-size: var(--fs-h1); font-weight: var(--fw-bold); font-variant-numeric: tabular-nums; }
+.kpi-queue { border-top-color: var(--color-gold); }
+.kpi-queue .kpi-value { color: var(--color-primary); }
 .kpi-review { border-top-color: var(--color-warning); }
 .kpi-review .kpi-value { color: var(--color-warning); }
 .kpi-changes { border-top-color: var(--color-error); }

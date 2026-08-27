@@ -22,6 +22,10 @@ export interface SweepConfig {
   range: DateRange;
   /** 0 disables auto-refresh. */
   autoRefreshMinutes: number;
+  /** Include draft PRs on the board. */
+  includeDrafts: boolean;
+  /** Flag open PRs untouched for this many days. 0 disables. */
+  staleDays: number;
 }
 
 export type SweepConfigPatch = Partial<SweepConfig>;
@@ -33,6 +37,7 @@ export interface PrRow {
   number: number;
   title: string;
   url: string;
+  isDraft: boolean;
   author: string;
   authorAvatarUrl: string;
   bucket: ReviewBucket;
@@ -53,6 +58,8 @@ export interface SweepResult {
   range: DateRange;
   open: PrRow[];
   merged: PrRow[];
+  /** Open PRs org-wide with the signed-in user's review requested — any author, any age. */
+  queue: PrRow[];
 }
 
 export interface AuthStatus {

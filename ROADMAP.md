@@ -12,10 +12,10 @@ it's clunky.
 - [x] Document the SmartScreen warning workaround for the unsigned exe
 - [x] Installed app shows as "PR Sweep" in the Start Menu (userData stays at `pr-sweep`)
 
-## v0.4 — The reviewer's half of the story
-- [ ] "My queue" view (`review-requested:@me`)
-- [ ] Show-drafts toggle
-- [ ] Stale-PR aging cues (untouched > N days gets flagged)
+## v0.4 — The reviewer's half of the story ✅
+- [x] "My queue" section — open PRs org-wide with your review requested
+- [x] Show-drafts toggle
+- [x] Stale-PR aging cues (untouched > N days flagged, threshold configurable)
 
 ## v0.5 — Notifications
 - [ ] Tray icon with a needs-review badge count

@@ -51,7 +51,7 @@ import { BoardStore } from '../board.store';
       </section>
 
       <section>
-        <h2>Refresh</h2>
+        <h2>Board</h2>
         <label class="field">
           Auto-refresh every (minutes, 0 = off)
           <input
@@ -59,6 +59,15 @@ import { BoardStore } from '../board.store';
             min="0"
             [value]="store.config()?.autoRefreshMinutes ?? 5"
             (change)="store.patchConfig({ autoRefreshMinutes: +$any($event.target).value })"
+          />
+        </label>
+        <label class="field">
+          Flag open PRs as stale after (days, 0 = off)
+          <input
+            type="number"
+            min="0"
+            [value]="store.config()?.staleDays ?? 5"
+            (change)="store.patchConfig({ staleDays: +$any($event.target).value })"
           />
         </label>
       </section>

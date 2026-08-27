@@ -13,6 +13,10 @@ changes requested, what's approved, and what merged — this sprint.**
 
 - 📋 **Status board** — dense tables for Needs review · Changes requested · Approved · Merged,
   bucketed from GitHub's actual `reviewDecision`. No labels, no manual bookkeeping.
+- 🙋 **My queue** — a section for open PRs anywhere in the org with *your* review requested,
+  so nothing waiting on you slips through.
+- ⏳ **Stale flags** — open PRs untouched past a configurable threshold are highlighted; toggle
+  draft PRs on or off.
 - 📅 **Date-range scoped** — pick From/To dates in the header and they persist; leave "To" empty
   for an open-ended view. Set the range at sprint start and forget about it.
 - 👥 **Team-scoped** — aggregate PRs authored by a configurable list of GitHub logins
