@@ -9,6 +9,8 @@
 import { ipcMain, shell } from 'electron';
 import { ConfigService } from './core/config.service';
 import { GithubService } from './core/github.service';
+import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
+import { pollForToken, requestDeviceCode } from './core/oauth.service';
 import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
 import { AuthStatus, DateRange, SweepConfigPatch } from '../shared/types';
@@ -38,6 +40,20 @@ export function registerIpc(services: Services): void {
     return { hasToken: false, login: null, error: null };
   });
 
+  ipcMain.handle('oauth:available', () => !!oauthClientId(services));
+  ipcMain.handle('oauth:login', async (event) => {
+    const clientId = oauthClientId(services);
+    if (!clientId) throw new Error('Device-flow sign-in is not configured.');
+    const dc = await requestDeviceCode(clientId);
+    // Show the code to the user, then open GitHub's verification page for them.
+    event.sender.send('oauth:code', { userCode: dc.userCode, verificationUri: dc.verificationUri });
+    await shell.openExternal(dc.verificationUri);
+    services.tokens.set(await pollForToken(clientId, dc));
+    const status = await authStatus(services);
+    if (!status.login || status.error) services.tokens.clear();
+    return status;
+  });
+
   ipcMain.handle('prs:fetch', async (_e, range: DateRange) => {
     const result = await services.github.sweep(services.config.get(), range);
     services.snapshots.set(result);
@@ -51,6 +67,11 @@ export function registerIpc(services: Services): void {
     if (/^https:\/\/github\.com\//.test(String(url))) return shell.openExternal(url);
     return Promise.resolve();
   });
+}
+
+/** Per-install override wins over the baked-in default (either may be empty). */
+function oauthClientId(services: Services): string {
+  return services.config.get().oauthClientId?.trim() || DEFAULT_OAUTH_CLIENT_ID;
 }
 
 async function authStatus(services: Services): Promise<AuthStatus> {

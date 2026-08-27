@@ -30,6 +30,14 @@ export interface SweepConfig {
   notifications: boolean;
   /** Closing the window hides to tray (keeps watching) instead of quitting. */
   closeToTray: boolean;
+  /** Per-install override for the device-flow OAuth App client_id (advanced). */
+  oauthClientId: string;
+}
+
+/** Pushed to the renderer mid-sign-in so it can show the code to enter. */
+export interface DeviceCodeInfo {
+  userCode: string;
+  verificationUri: string;
 }
 
 export type SweepConfigPatch = Partial<SweepConfig>;
@@ -79,6 +87,12 @@ export interface PrSweepApi {
   authStatus(): Promise<AuthStatus>;
   setToken(token: string): Promise<AuthStatus>;
   clearToken(): Promise<AuthStatus>;
+  /** Whether device-flow sign-in is available (a client_id is configured). */
+  oauthAvailable(): Promise<boolean>;
+  /** Run device-flow sign-in end to end; resolves with the resulting auth. */
+  startOAuth(): Promise<AuthStatus>;
+  /** Subscribe to the one-shot device code emitted mid-sign-in. */
+  onOAuthCode(cb: (info: DeviceCodeInfo) => void): void;
   fetchPrs(range: DateRange): Promise<SweepResult>;
   /** Last sweep cached on disk, or null — for instant boot before the live refresh lands. */
   latestSweep(): Promise<SweepResult | null>;

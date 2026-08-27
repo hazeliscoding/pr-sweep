@@ -157,6 +157,14 @@ export class BoardStore {
     return status;
   }
 
+  /** Device-flow sign-in; resolves once GitHub returns a token (or it fails). */
+  async startOAuth(): Promise<AuthStatus> {
+    const status = await this.api.startOAuth();
+    this.auth.set(status);
+    if (status.login && !status.error) await this.refresh();
+    return status;
+  }
+
   async clearToken(): Promise<void> {
     this.auth.set(await this.api.clearToken());
     this.result.set(null);

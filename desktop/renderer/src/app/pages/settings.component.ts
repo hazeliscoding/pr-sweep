@@ -28,6 +28,14 @@ import { BoardStore } from '../board.store';
             }
           </p>
         }
+        <label class="field">
+          OAuth App client ID (optional — enables "Sign in with GitHub")
+          <input
+            placeholder="Iv1.…"
+            [value]="store.config()?.oauthClientId ?? ''"
+            (change)="store.patchConfig({ oauthClientId: $any($event.target).value.trim() })"
+          />
+        </label>
       </section>
 
       <section>

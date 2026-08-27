@@ -74,6 +74,7 @@ if (process.env.PRSWEEP_DEMO) {
       staleDays: 5,
       notifications: true,
       closeToTray: true,
+      oauthClientId: '',
     },
   );
   // Relaunch so the app boots cleanly from the demo config (reload() doesn't

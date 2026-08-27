@@ -21,6 +21,7 @@ export function defaultConfig(): SweepConfig {
     staleDays: 5,
     notifications: true,
     closeToTray: true,
+    oauthClientId: '',
   };
 }
 
@@ -41,6 +42,7 @@ export class ConfigService {
         staleDays: stored.staleDays ?? base.staleDays,
         notifications: stored.notifications ?? base.notifications,
         closeToTray: stored.closeToTray ?? base.closeToTray,
+        oauthClientId: stored.oauthClientId ?? base.oauthClientId,
       };
     } catch {
       return defaultConfig();

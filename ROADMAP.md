@@ -22,9 +22,11 @@ it's clunky.
 - [x] Desktop toast when a new PR lands in your review queue (click opens the PR)
 - [x] Close-to-tray so the app keeps sweeping in the background
 
-## v0.6 — Auth without the PAT dance
-- [ ] GitHub Device Flow OAuth (no token copy/paste, no SSO-blind-PAT trap)
-- [ ] Rate-limit backoff for large orgs
+## v0.6 — Auth without the PAT dance ✅
+- [x] GitHub Device Flow OAuth (no token copy/paste, no SSO-blind-PAT trap)
+- [x] Personal-access-token sign-in kept as a fallback
+- [x] Client ID configurable per-install (Settings) for forks / self-hosters
+- [ ] Rate-limit backoff for large orgs *(deferred to a later release)*
 
 ## v0.7 — Profiles & shared config
 - [ ] Multiple org/team profiles with a quick switcher

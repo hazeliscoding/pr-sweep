@@ -19,6 +19,12 @@ export interface SweepConfig {
   staleDays: number;
   notifications: boolean;
   closeToTray: boolean;
+  oauthClientId: string;
+}
+
+export interface DeviceCodeInfo {
+  userCode: string;
+  verificationUri: string;
 }
 
 export type SweepConfigPatch = Partial<SweepConfig>;
@@ -64,6 +70,9 @@ export interface PrSweepApi {
   authStatus(): Promise<AuthStatus>;
   setToken(token: string): Promise<AuthStatus>;
   clearToken(): Promise<AuthStatus>;
+  oauthAvailable(): Promise<boolean>;
+  startOAuth(): Promise<AuthStatus>;
+  onOAuthCode(cb: (info: DeviceCodeInfo) => void): void;
   fetchPrs(range: DateRange): Promise<SweepResult>;
   latestSweep(): Promise<SweepResult | null>;
   syncTray(sync: { queue: PrRow[]; needsReviewCount: number }): Promise<void>;

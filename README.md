@@ -29,8 +29,10 @@ changes requested, what's approved, and what merged — this sprint.**
   running in the tray so it keeps watching.
 - 🔄 Auto-refresh (default every 5 min), manual Refresh button.
 - 🌗 Light/dark theme toggle; follows the OS on first run, choice persists per machine.
-- 🔐 Token stored encrypted at rest (Windows DPAPI via Electron safeStorage) — it never
-  leaves the machine.
+- 🔑 **Sign in with GitHub** (device flow) — no token to copy-paste; personal-access-token
+  sign-in stays as a fallback.
+- 🔐 Credentials stored encrypted at rest (Windows DPAPI via Electron safeStorage) — they never
+  leave the machine.
 
 ## 🚀 Getting started
 
@@ -41,15 +43,24 @@ doesn't self-update). Or build it yourself (below).
 > **SmartScreen note:** the builds aren't code-signed, so Windows may warn on first run —
 > click *More info → Run anyway*. Signing is on the [roadmap](ROADMAP.md).
 
-First launch asks for:
+First launch asks for your GitHub organization, then offers two ways to connect:
 
-1. Your GitHub organization.
-2. A personal access token (classic) with the `repo` and `read:org` scopes.
-   If your org uses SAML SSO, remember to **Configure SSO** on the token and authorize the org —
-   an unauthorized token gets no errors from GitHub's API, just silently empty results, and
-   PR Sweep detects and explains this instead of showing an empty board.
+- **Sign in with GitHub** (recommended) — enter a short code at `github.com/login/device`;
+  no token to manage.
+- **Personal access token** — a classic token with `repo` + `read:org` scopes. If your org
+  uses SAML SSO, **Configure SSO** on the token and authorize the org (an unauthorized token
+  gets no API errors, just silently empty results — PR Sweep detects and explains this rather
+  than showing an empty board).
 
 Then add your team's GitHub logins in Settings and set the date range in the header.
+
+### Self-hosting the OAuth sign-in
+
+"Sign in with GitHub" needs a registered OAuth App's client ID. The public builds ship one; if
+you fork this, register your own (GitHub → Developer settings → **New OAuth App**, then enable
+**Device Flow**) and either set `DEFAULT_OAUTH_CLIENT_ID` in
+`desktop/src/main/core/oauth.constants.ts` before building, or paste it into **Settings → OAuth
+App client ID** at runtime. The client ID is public by design (device flow has no secret).
 
 ## 🛠️ Development
 
