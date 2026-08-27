@@ -1,6 +1,6 @@
 {
   "name": "pr-sweep-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "author": "hazeliscoding",
   "description": "pr-sweep desktop app (Electron) — team PR dashboard by sprint.",
