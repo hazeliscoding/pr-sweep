@@ -48,6 +48,8 @@ export interface PrRow {
 
 export interface SweepResult {
   fetchedAt: string;
+  /** Org the sweep ran against — lets a cached snapshot prove it's still relevant. */
+  org: string;
   range: DateRange;
   open: PrRow[];
   merged: PrRow[];
@@ -67,5 +69,7 @@ export interface PrSweepApi {
   setToken(token: string): Promise<AuthStatus>;
   clearToken(): Promise<AuthStatus>;
   fetchPrs(range: DateRange): Promise<SweepResult>;
+  /** Last sweep cached on disk, or null — for instant boot before the live refresh lands. */
+  latestSweep(): Promise<SweepResult | null>;
   openExternal(url: string): Promise<void>;
 }

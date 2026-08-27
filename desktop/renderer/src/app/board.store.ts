@@ -72,10 +72,22 @@ export class BoardStore {
 
   async init(): Promise<void> {
     try {
-      const [config, auth] = await Promise.all([this.api.getConfig(), this.api.authStatus()]);
+      // Config + cached snapshot are local reads — paint the board with them
+      // immediately. The auth probe and live sweep (both network) come after,
+      // quietly replacing the stale data.
+      const [config, snapshot] = await Promise.all([this.api.getConfig(), this.api.latestSweep()]);
       this.config.set(config);
+      if (
+        snapshot &&
+        snapshot.org === config.org &&
+        snapshot.range.start === config.range.start &&
+        (snapshot.range.end ?? null) === (config.range.end ?? null)
+      ) {
+        this.result.set(snapshot);
+      }
+      const auth = await this.api.authStatus();
       this.auth.set(auth);
-      if (auth.login) await this.refresh();
+      if (auth.login) await this.refresh({ auto: true });
       this.armAutoRefresh();
     } catch (e) {
       this.error.set(`Failed to load: ${(e as Error).message}`);

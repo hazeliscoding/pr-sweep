@@ -8,6 +8,7 @@ import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import { ConfigService } from './core/config.service';
 import { GithubService } from './core/github.service';
+import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
 import { registerIpc } from './ipc';
 
@@ -53,6 +54,7 @@ app.whenReady().then(async () => {
     config: new ConfigService(path.join(userDataDir, 'config.json')),
     tokens,
     github: new GithubService(() => tokens.get()),
+    snapshots: new SnapshotStore(path.join(userDataDir, 'snapshot.json')),
   });
   await createWindow();
 

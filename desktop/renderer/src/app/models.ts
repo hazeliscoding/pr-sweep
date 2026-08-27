@@ -40,6 +40,7 @@ export interface PrRow {
 
 export interface SweepResult {
   fetchedAt: string;
+  org: string;
   range: DateRange;
   open: PrRow[];
   merged: PrRow[];
@@ -58,5 +59,6 @@ export interface PrSweepApi {
   setToken(token: string): Promise<AuthStatus>;
   clearToken(): Promise<AuthStatus>;
   fetchPrs(range: DateRange): Promise<SweepResult>;
+  latestSweep(): Promise<SweepResult | null>;
   openExternal(url: string): Promise<void>;
 }

@@ -9,6 +9,7 @@
 import { ipcMain, shell } from 'electron';
 import { ConfigService } from './core/config.service';
 import { GithubService } from './core/github.service';
+import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
 import { AuthStatus, DateRange, SweepConfigPatch } from '../shared/types';
 
@@ -16,6 +17,7 @@ export interface Services {
   config: ConfigService;
   tokens: TokenStore;
   github: GithubService;
+  snapshots: SnapshotStore;
 }
 
 export function registerIpc(services: Services): void {
@@ -36,9 +38,12 @@ export function registerIpc(services: Services): void {
     return { hasToken: false, login: null, error: null };
   });
 
-  ipcMain.handle('prs:fetch', (_e, range: DateRange) =>
-    services.github.sweep(services.config.get(), range),
-  );
+  ipcMain.handle('prs:fetch', async (_e, range: DateRange) => {
+    const result = await services.github.sweep(services.config.get(), range);
+    services.snapshots.set(result);
+    return result;
+  });
+  ipcMain.handle('prs:latest', () => services.snapshots.get());
 
   ipcMain.handle('shell:open', (_e, url: string) => {
     // The renderer only ever passes PR URLs, but shell.openExternal is the one
@@ -51,10 +56,15 @@ export function registerIpc(services: Services): void {
 async function authStatus(services: Services): Promise<AuthStatus> {
   if (!services.tokens.get()) return { hasToken: false, login: null, error: null };
   try {
-    const login = await services.github.viewer();
     const org = services.config.get().org;
+    // Both probes hit the network; run them together — this check gates first
+    // paint of live data on every boot.
+    const [login, orgOk] = await Promise.all([
+      services.github.viewer(),
+      org ? services.github.orgVisible(org) : Promise.resolve(false),
+    ]);
     if (!org) return { hasToken: true, login, error: 'No GitHub organization configured yet.' };
-    if (!(await services.github.orgVisible(org))) {
+    if (!orgOk) {
       return {
         hasToken: true,
         login,

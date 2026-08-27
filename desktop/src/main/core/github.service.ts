@@ -14,7 +14,9 @@
 import { DateRange, PrRow, ReviewBucket, SweepConfig, SweepResult } from '../../shared/types';
 
 const GRAPHQL_URL = 'https://api.github.com/graphql';
-const PAGE_SIZE = 50;
+// GraphQL search's max page size — fewer round trips is the single biggest
+// lever on sweep latency for busy ranges.
+const PAGE_SIZE = 100;
 
 const SEARCH_QUERY = `
   query ($q: String!, $after: String) {
@@ -96,6 +98,7 @@ export class GithubService {
     const [open, merged] = await Promise.all([this.searchAll(openQ), this.searchAll(mergedQ)]);
     return {
       fetchedAt: new Date().toISOString(),
+      org: config.org,
       range,
       open: open.map((n) => toRow(n, bucketOf(n))),
       merged: merged.map((n) => toRow(n, 'merged')),

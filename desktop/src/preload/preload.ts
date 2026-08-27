@@ -14,6 +14,7 @@ const api: PrSweepApi = {
   setToken: (token) => ipcRenderer.invoke('auth:setToken', token),
   clearToken: () => ipcRenderer.invoke('auth:clear'),
   fetchPrs: (range) => ipcRenderer.invoke('prs:fetch', range),
+  latestSweep: () => ipcRenderer.invoke('prs:latest'),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
 };
 
