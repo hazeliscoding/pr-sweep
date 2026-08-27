@@ -5,11 +5,12 @@ builds and the app updates itself; reviewer features and notifications next, bec
 the daily-use value; auth and profiles after, because PAT onboarding works today even if
 it's clunky.
 
-## v0.3 — Distribution you can trust
-- [ ] GitHub Actions CI: build + typecheck on every PR
-- [ ] Release workflow: tagging `v*` builds and attaches the exe automatically
-- [ ] NSIS installer target alongside portable, wired to electron-updater for self-updates
-- [ ] Document the SmartScreen warning workaround for the unsigned exe
+## v0.3 — Distribution you can trust ✅
+- [x] GitHub Actions CI: build + typecheck on every PR
+- [x] Release workflow: tagging `v*` builds and attaches the exe automatically
+- [x] NSIS installer target alongside portable, wired to electron-updater for self-updates
+- [x] Document the SmartScreen warning workaround for the unsigned exe
+- [x] Installed app shows as "PR Sweep" in the Start Menu (userData stays at `pr-sweep`)
 
 ## v0.4 — The reviewer's half of the story
 - [ ] "My queue" view (`review-requested:@me`)

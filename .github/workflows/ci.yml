@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: |
+          npm ci
+          (cd desktop && npm ci)
+          (cd desktop/renderer && npm ci)
+      # Renderer AOT build + main-process tsc together are the typecheck.
+      - name: Build
+        run: npm run build

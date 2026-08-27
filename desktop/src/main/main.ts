@@ -5,6 +5,7 @@
  * opens DevTools; packaged it loads the built renderer/index.html from disk.
  */
 import { app, BrowserWindow } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import * as path from 'path';
 import { ConfigService } from './core/config.service';
 import { GithubService } from './core/github.service';
@@ -12,7 +13,9 @@ import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
 import { registerIpc } from './ipc';
 
-// Consistent userData folder in dev ("pr-sweep-desktop" would be used otherwise).
+// Keep the userData folder at %APPDATA%/pr-sweep even though the product now
+// displays as "PR Sweep" — existing configs and tokens must survive the rename.
+// (Also keeps dev and packaged builds on the same folder.)
 app.setName('pr-sweep');
 
 let win: BrowserWindow | null = null;
@@ -57,6 +60,14 @@ app.whenReady().then(async () => {
     snapshots: new SnapshotStore(path.join(userDataDir, 'snapshot.json')),
   });
   await createWindow();
+
+  // Auto-update: installed builds only. The portable exe has no update story
+  // (PORTABLE_EXECUTABLE_DIR is set by its launcher) — those users re-download.
+  if (app.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR) {
+    autoUpdater
+      .checkForUpdatesAndNotify()
+      .catch((err) => console.warn('[pr-sweep] update check failed:', err?.message ?? err));
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -1,6 +1,6 @@
 {
   "name": "pr-sweep",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "pr-sweep — a portable desktop PR dashboard for the team: what's open, what needs review, what merged, by sprint.",
   "scripts": {

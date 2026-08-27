@@ -27,8 +27,14 @@ changes requested, what's approved, and what merged — this sprint.**
 
 ## 🚀 Getting started
 
-Grab the portable exe from [Releases](../../releases) (no install — just run it), or build it
-yourself (below). First launch asks for:
+Grab a build from [Releases](../../releases) — the **setup exe** installs PR Sweep (Start Menu
+entry, self-updating on new releases) and the **portable exe** just runs with no install (but
+doesn't self-update). Or build it yourself (below).
+
+> **SmartScreen note:** the builds aren't code-signed, so Windows may warn on first run —
+> click *More info → Run anyway*. Signing is on the [roadmap](ROADMAP.md).
+
+First launch asks for:
 
 1. Your GitHub organization.
 2. A personal access token (classic) with the `repo` and `read:org` scopes.
