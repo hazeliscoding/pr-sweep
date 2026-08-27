@@ -22,6 +22,7 @@
   "build": {
     "appId": "dev.prsweep.app",
     "productName": "PR Sweep",
+    "executableName": "pr-sweep",
     "npmRebuild": false,
     "publish": {
       "provider": "github",
