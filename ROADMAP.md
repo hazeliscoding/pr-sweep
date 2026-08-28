@@ -26,7 +26,7 @@ it's clunky.
 - [x] GitHub Device Flow OAuth (no token copy/paste, no SSO-blind-PAT trap)
 - [x] Personal-access-token sign-in kept as a fallback
 - [x] Client ID configurable per-install (Settings) for forks / self-hosters
-- [ ] Rate-limit backoff for large orgs *(deferred to a later release)*
+- [x] Rate-limit backoff for large orgs *(landed in v0.9.2 with the performance work)*
 
 ## v0.7 — Profiles & shared config ✅
 - [x] Multiple org/team profiles with a header switcher
@@ -44,6 +44,8 @@ it's clunky.
 - [ ] macOS build *(blocked on an Apple Developer Program membership: Gatekeeper blocks
       unsigned apps and macOS auto-update requires a signed build, so shipping unsigned
       would be worse than not shipping)*
-- [ ] Performance for orgs with huge PR volume (caching, smarter pagination)
+- [x] Performance for orgs with huge PR volume — auto-refreshes patch the cached sweep
+      incrementally (only PRs updated since last time), date windows split automatically
+      past GitHub's 1000-result search cap, and rate limits retry with the server-stated wait
 - [x] Code signing (Azure Trusted Signing in the release workflow, same signing account as ez-money)
 - [ ] 1.0 when auto-update has proven itself across a few releases

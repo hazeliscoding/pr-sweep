@@ -112,7 +112,8 @@ desktop/
       config.service  org/authors/range/refresh persisted to userData/config.json
       token.store     PAT encrypted at rest via safeStorage (userData/token.bin)
       snapshot.store  last sweep cached to userData/snapshot.json for instant boot
-      github.service  GraphQL search (ISSUE_ADVANCED backend), reviewDecision bucketing
+      github.service  GraphQL search (ISSUE_ADVANCED backend), reviewDecision bucketing,
+                      rate-limit backoff, cap-splitting windowed pagination, incremental refresh
   src/preload/        typed window.api bridge (contextIsolation on)
   src/shared/types.ts the whole main<->renderer contract
   renderer/           Angular app: BoardStore (signals) + board/settings pages
@@ -131,6 +132,11 @@ GitHub search quirks this encodes (verified against the live API):
 - A token that isn't SSO-authorized for an org gets no search errors — results are
   just silently filtered. The only reliable probe is whether the org's repositories
   are visible at all.
+- Search hard-caps every query at 1000 results no matter how you paginate. When a
+  busy range would blow past it, PR Sweep splits the date window in half and queries
+  the halves recursively. Auto-refreshes skip most of this entirely: they ask only
+  for PRs updated since the previous sweep and patch the cached result (a manual
+  Refresh always resweeps in full).
 
 ## 🗺️ Roadmap
 

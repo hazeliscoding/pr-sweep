@@ -20,7 +20,7 @@ const api: PrSweepApi = {
     ipcRenderer.removeAllListeners('oauth:code');
     ipcRenderer.on('oauth:code', (_e, info) => cb(info));
   },
-  fetchPrs: (range) => ipcRenderer.invoke('prs:fetch', range),
+  fetchPrs: (range, mode) => ipcRenderer.invoke('prs:fetch', range, mode),
   latestSweep: () => ipcRenderer.invoke('prs:latest'),
   syncTray: (sync) => ipcRenderer.invoke('tray:sync', sync),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),

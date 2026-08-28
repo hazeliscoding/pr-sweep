@@ -1,6 +1,7 @@
 /**
- * Verifies the sweep's query construction and reviewDecision bucketing against
- * a mocked GitHub GraphQL endpoint — no network. Run after `npm run build:main`:
+ * Verifies the sweep's query construction, reviewDecision bucketing, rate-limit
+ * retries, cap-window splitting, and incremental patching against a mocked
+ * GitHub GraphQL endpoint — no network. Run after `npm run build:main`:
  * node src/main/core/github.service.test.mjs
  */
 import assert from 'node:assert';
@@ -26,6 +27,26 @@ function node(number, reviewDecision, extra = {}) {
   };
 }
 
+function row(number, bucket) {
+  return {
+    repo: 'r',
+    number,
+    title: `pr ${number}`,
+    url: `https://github.com/o/r/pull/${number}`,
+    isDraft: false,
+    author: 'a',
+    authorAvatarUrl: '',
+    bucket,
+    createdAt: '2026-08-01T00:00:00Z',
+    updatedAt: '2026-08-02T00:00:00Z',
+    mergedAt: null,
+    comments: 0,
+    additions: 1,
+    deletions: 0,
+    requestedReviewers: [],
+  };
+}
+
 function makeConfig(profilePatch = {}) {
   return {
     profiles: [
@@ -48,7 +69,11 @@ function makeConfig(profilePatch = {}) {
   };
 }
 
-const json = (data) => ({ ok: true, status: 200, json: async () => ({ data }) });
+const headers = () => ({ get: () => null });
+const json = (data) => ({ ok: true, status: 200, headers: headers(), json: async () => ({ data }) });
+const page = (nodes, issueCount = nodes.length) => ({
+  search: { issueCount, pageInfo: { hasNextPage: false, endCursor: null }, nodes },
+});
 
 /** Runs sweep with a fetch mock, returning { result, queries: {open,merged,queue} }. */
 async function runSweep(config, range) {
@@ -61,25 +86,22 @@ async function runSweep(config, range) {
     const q = body.variables.q;
     if (q.includes('review-requested')) {
       queries.queue = q;
-      return json({ search: { pageInfo: { hasNextPage: false }, nodes: [node(10, 'REVIEW_REQUIRED')] } });
+      return json(page([node(10, 'REVIEW_REQUIRED')]));
     }
     if (q.includes('is:merged')) {
       queries.merged = q;
-      return json({ search: { pageInfo: { hasNextPage: false }, nodes: [node(20, null, { mergedAt: '2026-08-05T00:00:00Z' })] } });
+      return json(page([node(20, null, { mergedAt: '2026-08-05T00:00:00Z' })]));
     }
     queries.open = q;
-    return json({
-      search: {
-        pageInfo: { hasNextPage: false },
-        nodes: [
-          node(1, 'APPROVED'),
-          node(2, 'CHANGES_REQUESTED'),
-          node(3, 'REVIEW_REQUIRED'),
-          node(4, null),
-          node(5, 'REVIEW_REQUIRED', { isDraft: true }),
-        ],
-      },
-    });
+    return json(
+      page([
+        node(1, 'APPROVED'),
+        node(2, 'CHANGES_REQUESTED'),
+        node(3, 'REVIEW_REQUIRED'),
+        node(4, null),
+        node(5, 'REVIEW_REQUIRED', { isDraft: true }),
+      ]),
+    );
   };
   const svc = new GithubService(() => 'tok');
   const result = await svc.sweep(config, range);
@@ -94,8 +116,8 @@ async function runSweep(config, range) {
   assert.match(queries.open, /is:open/);
   assert.match(queries.open, /draft:false/, 'hides drafts by default');
   assert.match(queries.open, /\(author:alice OR author:bob\)/, 'ORs the authors');
-  assert.match(queries.open, /updated:>=2026-08-01/);
-  assert.match(queries.merged, /merged:>=2026-08-01/, 'open-ended merged uses >=');
+  assert.match(queries.open, /updated:2026-08-01\.\.\d{4}-\d{2}-\d{2}/, 'open-ended range closes at today');
+  assert.match(queries.merged, /merged:2026-08-01\.\.\d{4}-\d{2}-\d{2}/, 'open-ended merged closes at today');
   assert.match(queries.queue, /review-requested:me/, 'queue uses the viewer login');
 
   const bucket = (n) => result.open.find((r) => r.number === n)?.bucket;
@@ -134,4 +156,197 @@ await assert.rejects(
   /No GitHub organization/,
 );
 
-console.log('github.service: query construction + bucketing cases pass');
+// --- transient 502 is retried, then succeeds ---
+{
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls === 1) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    return json({ viewer: { login: 'me' } });
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  assert.equal(await svc.viewer(), 'me');
+  assert.equal(calls, 2, '502 retried once');
+}
+
+// --- secondary rate limit (403 + Retry-After) is retried ---
+{
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls === 1) {
+      return {
+        ok: false,
+        status: 403,
+        headers: { get: (n) => (n === 'retry-after' ? '0' : null) },
+        json: async () => ({}),
+      };
+    }
+    return json({ viewer: { login: 'me' } });
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  assert.equal(await svc.viewer(), 'me');
+  assert.equal(calls, 2, '403 retried once');
+}
+
+// --- GraphQL RATE_LIMITED (HTTP 200) is retried ---
+{
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls === 1) {
+      return { ok: true, status: 200, headers: headers(), json: async () => ({ errors: [{ message: 'rate limited', type: 'RATE_LIMITED' }] }) };
+    }
+    return json({ viewer: { login: 'me' } });
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  assert.equal(await svc.viewer(), 'me');
+  assert.equal(calls, 2, 'RATE_LIMITED retried once');
+}
+
+// --- retries are bounded: persistent 502 surfaces the error ---
+{
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  await assert.rejects(() => svc.viewer(), /HTTP 502/);
+  assert.equal(calls, 4, 'initial call + 3 retries');
+}
+
+// --- a window over the 1000-result cap splits by date and dedupes ---
+{
+  const merged = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('review-requested')) return json(page([]));
+    if (q.includes('is:merged')) {
+      merged.push(q);
+      if (q.includes('merged:2026-08-01..2026-08-31')) return json(page([node(100, null)], 1500));
+      if (q.includes('merged:2026-08-01..2026-08-16')) return json(page([node(101, null)], 800));
+      if (q.includes('merged:2026-08-17..2026-08-31')) return json(page([node(102, null)], 700));
+      assert.fail(`unexpected merged window: ${q}`);
+    }
+    return json(page([node(1, 'APPROVED')]));
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: '2026-08-31' });
+  assert.equal(merged.length, 3, 'full window + two halves');
+  assert.deepEqual(
+    result.merged.map((r) => r.number).sort(),
+    [101, 102],
+    'capped window replaced by its halves',
+  );
+}
+
+// --- incremental patch: a changed PR moves buckets, untouched rows survive ---
+{
+  const base = {
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [row(1, 'needs-review'), row(2, 'needs-review')],
+    merged: [row(20, 'merged')],
+    queue: [],
+  };
+  const queries = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    queries.push(q);
+    if (q.includes('review-requested')) return json(page([]));
+    if (q.includes('is:merged')) return json(page([]));
+    if (q.includes('is:open')) return json(page([node(2, 'APPROVED')]));
+    return json(page([node(2, 'APPROVED')])); // the org-wide changed probe
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+  const probe = queries.find((q) => !q.includes('is:open') && !q.includes('is:merged'));
+  assert.match(probe, /updated:>=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00/, 'probe uses a datetime cutoff');
+  assert.equal(queries.length, 4, 'probe + three deltas');
+  assert.equal(result.open.find((r) => r.number === 2)?.bucket, 'approved', 'changed PR re-bucketed');
+  assert.equal(result.open.find((r) => r.number === 1)?.bucket, 'needs-review', 'untouched row kept');
+  assert.equal(result.merged.length, 1, 'merged untouched');
+}
+
+// --- incremental patch: a PR that left the result set is dropped ---
+{
+  const base = {
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [row(1, 'needs-review'), row(2, 'approved')],
+    merged: [],
+    queue: [row(1, 'needs-review')],
+  };
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('review-requested') || q.includes('is:merged') || q.includes('is:open')) {
+      return json(page([])); // changed PR no longer matches any bucket query
+    }
+    return json(page([node(1, null)])); // probe: PR 1 was updated (e.g. closed)
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+  assert.deepEqual(result.open.map((r) => r.number), [2], 'closed PR dropped from open');
+  assert.deepEqual(result.queue, [], 'closed PR dropped from queue');
+}
+
+// --- incremental with nothing changed: one probe, base returned refreshed ---
+{
+  const base = {
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [row(1, 'needs-review')],
+    merged: [],
+    queue: [],
+  };
+  let searches = 0;
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    searches++;
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+  assert.equal(searches, 1, 'quiet org costs a single search');
+  assert.deepEqual(result.open, base.open, 'rows unchanged');
+  assert.ok(result.fetchedAt > base.fetchedAt, 'fetchedAt refreshed');
+}
+
+// --- a stale base is ignored: full windowed sweep runs instead ---
+{
+  const base = {
+    fetchedAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [],
+    merged: [],
+    queue: [],
+  };
+  const queries = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    queries.push(body.variables.q);
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok');
+  await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+  assert.ok(
+    queries.some((q) => /updated:2026-08-01\.\./.test(q)),
+    'stale base → full range sweep',
+  );
+  assert.ok(!queries.some((q) => q.includes('updated:>=')), 'no incremental cutoff used');
+}
+
+console.log('github.service: query construction, bucketing, retry, windowing + incremental cases pass');

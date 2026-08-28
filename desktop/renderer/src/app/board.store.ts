@@ -124,7 +124,9 @@ export class BoardStore {
     this.loading.set(true);
     if (!opts.auto) this.error.set(null);
     try {
-      const result = await this.api.fetchPrs(range);
+      // Timer refreshes go incremental (cheap for big orgs); manual ones are
+      // always a full resweep so Refresh doubles as the recovery lever.
+      const result = await this.api.fetchPrs(range, opts.auto ? 'auto' : 'full');
       this.result.set(result);
       this.error.set(null);
       // Hand the queue to the tray (counts + review-request toasts). The needs-

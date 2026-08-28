@@ -55,8 +55,11 @@ export function registerIpc(services: Services): void {
     return status;
   });
 
-  ipcMain.handle('prs:fetch', async (_e, range: DateRange) => {
-    const result = await services.github.sweep(services.config.get(), range);
+  ipcMain.handle('prs:fetch', async (_e, range: DateRange, mode?: 'full' | 'auto') => {
+    // Auto-refreshes may patch the cached snapshot incrementally; manual
+    // refreshes always resweep in full so the user has a recovery lever.
+    const base = mode === 'auto' ? services.snapshots.get() : null;
+    const result = await services.github.sweep(services.config.get(), range, base);
     services.snapshots.set(result);
     return result;
   });

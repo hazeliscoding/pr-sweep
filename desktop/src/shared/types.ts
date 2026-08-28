@@ -107,7 +107,12 @@ export interface PrSweepApi {
   startOAuth(): Promise<AuthStatus>;
   /** Subscribe to the one-shot device code emitted mid-sign-in. */
   onOAuthCode(cb: (info: DeviceCodeInfo) => void): void;
-  fetchPrs(range: DateRange): Promise<SweepResult>;
+  /**
+   * Run a sweep. 'auto' (the refresh timer) may patch the cached snapshot
+   * incrementally — only PRs updated since it — while 'full' (the default;
+   * manual refresh, settings changes) always re-fetches everything.
+   */
+  fetchPrs(range: DateRange, mode?: 'full' | 'auto'): Promise<SweepResult>;
   /** Last sweep cached on disk, or null — for instant boot before the live refresh lands. */
   latestSweep(): Promise<SweepResult | null>;
   /** Push the latest queue to the tray for counts + review-request toasts. */

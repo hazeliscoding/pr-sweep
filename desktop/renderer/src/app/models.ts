@@ -82,7 +82,12 @@ export interface PrSweepApi {
   oauthAvailable(): Promise<boolean>;
   startOAuth(): Promise<AuthStatus>;
   onOAuthCode(cb: (info: DeviceCodeInfo) => void): void;
-  fetchPrs(range: DateRange): Promise<SweepResult>;
+  /**
+   * Run a sweep. 'auto' (the refresh timer) may patch the cached snapshot
+   * incrementally — only PRs updated since it — while 'full' (the default;
+   * manual refresh, settings changes) always re-fetches everything.
+   */
+  fetchPrs(range: DateRange, mode?: 'full' | 'auto'): Promise<SweepResult>;
   latestSweep(): Promise<SweepResult | null>;
   syncTray(sync: { queue: PrRow[]; needsReviewCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
