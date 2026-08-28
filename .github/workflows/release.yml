@@ -1,8 +1,9 @@
 name: Release
 
-# Pushing a v* tag builds the Windows installer + portable exe and publishes a
-# GitHub release with them. latest.yml (+ blockmap) is what electron-updater
-# reads to self-update installed copies — it must ship with every release.
+# Pushing a v* tag builds the Windows installer + portable exe and the Linux
+# AppImage, then publishes one GitHub release with all of them. latest.yml and
+# latest-linux.yml (+ blockmaps) are what electron-updater reads to self-update
+# installed copies — they must ship with every release.
 on:
   push:
     tags: ['v*']
@@ -11,8 +12,16 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+          - os: ubuntu-latest
+            target: linux
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,23 +37,38 @@ jobs:
         run: npm run build
       - name: Package
         shell: bash
-        run: cd desktop && npx electron-builder --win --publish never
+        run: cd desktop && npx electron-builder --${{ matrix.target }} --publish never
         env:
-          # Azure Trusted Signing — electron-builder authenticates via
-          # EnvironmentCredential and auto-installs the TrustedSigning PowerShell
-          # module on the runner. See desktop/package.json > build.win.azureSignOptions.
+          # Azure Trusted Signing (Windows leg only; ignored on Linux). electron-builder
+          # authenticates via EnvironmentCredential and auto-installs the TrustedSigning
+          # PowerShell module on the runner. See desktop/package.json > build.win.azureSignOptions.
           # Signing runs before latest.yml is generated, so update hashes stay valid.
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          if-no-files-found: error
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.AppImage
+            desktop/release/*.blockmap
+            desktop/release/latest*.yml
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - name: Publish release
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            desktop/release/*.exe \
-            desktop/release/*.blockmap \
-            desktop/release/latest.yml \
+          gh release create "${{ github.ref_name }}" dist/* \
+            --repo "${{ github.repository }}" \
             --title "${{ github.ref_name }}" \
             --generate-notes

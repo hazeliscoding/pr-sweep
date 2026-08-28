@@ -40,7 +40,10 @@ it's clunky.
 - [ ] Screenshot driver as a CI smoke test *(deferred — needs a headed runner + token secret)*
 
 ## v0.9 → 1.0 — Polish and platforms
-- [ ] macOS / Linux builds
+- [x] Linux build — AppImage with auto-update, built and published by the release workflow
+- [ ] macOS build *(blocked on an Apple Developer Program membership: Gatekeeper blocks
+      unsigned apps and macOS auto-update requires a signed build, so shipping unsigned
+      would be worse than not shipping)*
 - [ ] Performance for orgs with huge PR volume (caching, smarter pagination)
 - [x] Code signing (Azure Trusted Signing in the release workflow, same signing account as ez-money)
 - [ ] 1.0 when auto-update has proven itself across a few releases

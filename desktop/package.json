@@ -1,6 +1,6 @@
 {
   "name": "pr-sweep-desktop",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "author": "hazeliscoding",
   "description": "PR Sweep — a desktop PR dashboard for teams working across a GitHub organization.",
@@ -10,7 +10,8 @@
     "test": "node src/main/core/oauth.service.test.mjs && node src/main/core/config.service.test.mjs && node src/main/core/github.service.test.mjs",
     "start": "electron .",
     "package": "electron-builder",
-    "package:win": "electron-builder --win"
+    "package:win": "electron-builder --win",
+    "package:linux": "electron-builder --linux"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
@@ -60,6 +61,14 @@
     },
     "portable": {
       "artifactName": "pr-sweep-${version}-portable.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development",
+      "icon": "build/icon.png",
+      "artifactName": "pr-sweep-${version}.${ext}"
     }
   },
   "dependencies": {

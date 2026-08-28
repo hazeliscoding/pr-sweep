@@ -39,9 +39,17 @@ changes requested, what's approved, and what merged — this sprint.**
 
 ## 🚀 Getting started
 
-Grab a build from [Releases](../../releases) — the **setup exe** installs PR Sweep (Start Menu
-entry, self-updating on new releases) and the **portable exe** just runs with no install (but
-doesn't self-update). Or build it yourself (below).
+Grab a build from [Releases](../../releases):
+
+- **Windows** — the **setup exe** installs PR Sweep (Start Menu entry, self-updating on new
+  releases); the **portable exe** just runs with no install (but doesn't self-update).
+- **Linux** — the **AppImage** runs on any distro (`chmod +x pr-sweep-*.AppImage`, then run
+  it) and self-updates on new releases. Your token is encrypted via the system keyring
+  (GNOME Keyring / KWallet via libsecret) when one is available; without one it falls back
+  to base64 obfuscation — prefer a keyring on shared machines.
+- **macOS** — not yet; see the [roadmap](ROADMAP.md).
+
+Or build it yourself (below).
 
 > **SmartScreen note:** builds are code-signed (Azure Trusted Signing) as of v0.9. If
 > SmartScreen still warns while the certificate builds reputation, click *More info → Run
@@ -85,7 +93,8 @@ npm run dev          # Angular dev server (:4301) + Electron with live reload
 ## 📦 Packaging
 
 ```
-npm run package:win  # builds renderer + main, emits desktop/release/pr-sweep-*-portable.exe
+npm run package:win    # builds renderer + main, emits desktop/release/pr-sweep-*-setup.exe + portable exe
+npm run package:linux  # same, emits desktop/release/pr-sweep-*.AppImage (build on Linux)
 ```
 
 Release builds are signed via **Azure Trusted Signing** (`desktop/package.json` →

@@ -11,7 +11,8 @@
     "build": "cd desktop/renderer && npm run build && cd .. && npm run build:main",
     "test": "cd desktop && npm test",
     "package": "npm run build && cd desktop && npm run package",
-    "package:win": "npm run build && cd desktop && npm run package:win"
+    "package:win": "npm run build && cd desktop && npm run package:win",
+    "package:linux": "npm run build && cd desktop && npm run package:linux"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
