@@ -98,7 +98,10 @@ function setupAutoUpdate(): void {
     win?.webContents.send('update:state', state);
   const install = () => {
     quitting = true;
-    autoUpdater.quitAndInstall();
+    // isSilent: the assisted (non-one-click) installer would otherwise replay
+    // its full wizard UI on every update — silent reuses the existing install
+    // dir. isForceRunAfter: relaunch on the new version when it's done.
+    autoUpdater.quitAndInstall(true, true);
   };
   ipcMain.handle('update:install', () => install());
 
