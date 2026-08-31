@@ -35,6 +35,21 @@ const THEME_KEY = 'prsweep-theme';
               </select>
             </label>
           }
+          @if (store.updateState(); as update) {
+            @if (update.status === 'downloading') {
+              <span class="update-pill" title="A new version is downloading in the background">
+                Update v{{ update.version }} — {{ update.percent }}%
+              </span>
+            } @else {
+              <button
+                class="update-pill update-ready"
+                title="v{{ update.version }} is downloaded — restart to apply"
+                (click)="store.installUpdate()"
+              >
+                Update ready — Restart
+              </button>
+            }
+          }
           @if (store.fetchedAgeMin() !== null) {
             <span class="header-status">updated {{ ageLabel(store.fetchedAgeMin()!) }}</span>
           }

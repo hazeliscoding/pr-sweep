@@ -29,6 +29,9 @@ export class TrayController {
   private known: Set<string> | null = null;
   /** Same pattern for the author's own PRs: toast on transitions, not on launch. */
   private mineKnown: Map<string, { bucket: PrRow['bucket']; ci: PrRow['ci'] }> | null = null;
+  private updateReady: { version: string; install: () => void } | null = null;
+  /** Last synced counts so a menu rebuild outside sync() keeps them current. */
+  private counts = { queue: 0, needsReview: 0 };
 
   constructor(
     private readonly config: ConfigService,
@@ -90,8 +93,16 @@ export class TrayController {
     n.show();
   }
 
+  /** A downloaded update adds a restart entry to the tray menu — the tray is
+      the only surface a close-to-tray user reliably sees. */
+  setUpdateReady(version: string, install: () => void): void {
+    this.updateReady = { version, install };
+    this.render(this.counts.queue, this.counts.needsReview);
+  }
+
   private render(queueCount: number, needsReviewCount: number): void {
     if (!this.tray) return;
+    this.counts = { queue: queueCount, needsReview: needsReviewCount };
     this.tray.setImage(
       (queueCount > 0 ? this.iconAlert : this.iconIdle).resize({ width: 16, height: 16 }),
     );
@@ -102,8 +113,15 @@ export class TrayController {
           ? `${needsReviewCount} need review`
           : 'nothing waiting';
     this.tray.setToolTip(`PR Sweep — ${line}`);
+    const update: Electron.MenuItemConstructorOptions[] = this.updateReady
+      ? [
+          { label: `Restart to update (v${this.updateReady.version})`, click: this.updateReady.install },
+          { type: 'separator' },
+        ]
+      : [];
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
+        ...update,
         { label: `${queueCount} awaiting your review`, enabled: false },
         { label: `${needsReviewCount} need review (team)`, enabled: false },
         { type: 'separator' },

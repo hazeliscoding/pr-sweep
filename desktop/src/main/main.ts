@@ -78,6 +78,60 @@ app.on('before-quit', () => {
   quitting = true;
 });
 
+/** How often a running (possibly tray-hidden) app looks for a new release. */
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Auto-update for installed builds only — the portable exe has no update story
+ * (PORTABLE_EXECUTABLE_DIR is set by its launcher), those users re-download.
+ *
+ * Close-to-tray means the app can run for weeks without a relaunch, so a
+ * launch-only check would never fire for exactly the users who keep it open;
+ * check on launch and on an interval instead. Progress is pushed to the
+ * renderer (header pill) and the taskbar; when the download is ready the
+ * renderer and tray both offer "restart to update" (no forced restart).
+ */
+function setupAutoUpdate(): void {
+  if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_DIR) return;
+
+  const send = (state: { status: 'downloading' | 'ready'; version: string; percent: number } | null) =>
+    win?.webContents.send('update:state', state);
+  const install = () => {
+    quitting = true;
+    autoUpdater.quitAndInstall();
+  };
+  ipcMain.handle('update:install', () => install());
+
+  let version = '';
+  autoUpdater.on('update-available', (info) => {
+    version = info.version;
+    send({ status: 'downloading', version, percent: 0 });
+  });
+  autoUpdater.on('download-progress', (p) => {
+    send({ status: 'downloading', version, percent: Math.round(p.percent) });
+    win?.setProgressBar(p.percent / 100);
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    send({ status: 'ready', version: info.version, percent: 100 });
+    win?.setProgressBar(-1);
+    tray?.setUpdateReady(info.version, install);
+  });
+  autoUpdater.on('error', (err) => {
+    // A failed check or download isn't actionable mid-session — clear the UI
+    // and let the next interval try again.
+    console.warn('[pr-sweep] auto-update error:', err?.message ?? err);
+    send(null);
+    win?.setProgressBar(-1);
+  });
+
+  const check = () =>
+    autoUpdater
+      .checkForUpdates()
+      .catch((err) => console.warn('[pr-sweep] update check failed:', err?.message ?? err));
+  void check();
+  setInterval(() => void check(), UPDATE_CHECK_INTERVAL_MS);
+}
+
 app.whenReady().then(async () => {
   if (process.platform === 'win32') app.setAppUserModelId('dev.prsweep.app');
 
@@ -104,14 +158,7 @@ app.whenReady().then(async () => {
   }
 
   await createWindow();
-
-  // Auto-update: installed builds only. The portable exe has no update story
-  // (PORTABLE_EXECUTABLE_DIR is set by its launcher) — those users re-download.
-  if (app.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR) {
-    autoUpdater
-      .checkForUpdatesAndNotify()
-      .catch((err) => console.warn('[pr-sweep] update check failed:', err?.message ?? err));
-  }
+  setupAutoUpdate();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

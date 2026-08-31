@@ -47,6 +47,13 @@ Theme: the board tells you what actually needs *action*, not just what exists.
 - [x] Review-wait badges in "My queue" — how long each PR has been waiting on you,
       flagged past the stale threshold
 
+## v0.10.1 — Update UX ✅
+- [x] Periodic update checks (launch + every 6 hours) — close-to-tray no longer delays
+      updates until the next full restart
+- [x] In-app header pill with download progress and a Restart button (replaces the
+      easily-missed OS toast), plus taskbar progress while downloading
+- [x] "Restart to update" in the tray menu — reachable even with the window hidden
+
 ## v0.9 → 1.0 — Polish and platforms
 - [x] Linux build — AppImage with auto-update, built and published by the release workflow
 - [ ] macOS build *(blocked on an Apple Developer Program membership: Gatekeeper blocks

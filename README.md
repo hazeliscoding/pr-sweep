@@ -35,6 +35,10 @@ changes requested, what's approved, and what merged — this sprint.**
   approved, gets changes requested, or starts failing CI (click a toast to open the PR).
   Closing the window keeps it running in the tray so it keeps watching.
 - 🔄 Auto-refresh (default every 5 min), manual Refresh button.
+- ⬆️ **Self-updating** — installed builds check for new releases on launch and every
+  6 hours (so close-to-tray copies stay current too), download in the background with
+  progress in the header pill and taskbar, and apply only when you click **Restart**
+  (header pill or tray menu) or next quit.
 - 🌗 Light/dark theme toggle; follows the OS on first run, choice persists per machine.
 - 🔑 **Sign in with GitHub** (device flow) — no token to copy-paste; personal-access-token
   sign-in stays as a fallback.

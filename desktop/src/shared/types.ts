@@ -92,6 +92,14 @@ export interface SweepResult {
   queue: PrRow[];
 }
 
+/** Auto-update progress pushed from main; null = nothing in flight. */
+export interface UpdateState {
+  status: 'downloading' | 'ready';
+  version: string;
+  /** 0–100 while downloading; 100 once ready. */
+  percent: number;
+}
+
 export interface AuthStatus {
   hasToken: boolean;
   /** GitHub login the token authenticates as; null until validated. */
@@ -126,6 +134,10 @@ export interface PrSweepApi {
    */
   syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
+  /** Subscribe to auto-update state pushes (download progress, ready-to-restart). */
+  onUpdateState(cb: (state: UpdateState | null) => void): void;
+  /** Quit and install the downloaded update (no-op if none is ready). */
+  installUpdate(): Promise<void>;
   /** Write the profiles to a JSON file the user picks. Returns false if cancelled. */
   exportProfiles(): Promise<boolean>;
   /** Merge profiles from a JSON file the user picks. Returns the updated config, or null if cancelled. */

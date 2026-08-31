@@ -1,6 +1,6 @@
 {
   "name": "pr-sweep-desktop",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "private": true,
   "author": "hazeliscoding",
   "description": "PR Sweep — a desktop PR dashboard for teams working across a GitHub organization.",

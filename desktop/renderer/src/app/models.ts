@@ -71,6 +71,14 @@ export interface SweepResult {
   queue: PrRow[];
 }
 
+/** Auto-update progress pushed from main; null = nothing in flight. */
+export interface UpdateState {
+  status: 'downloading' | 'ready';
+  version: string;
+  /** 0–100 while downloading; 100 once ready. */
+  percent: number;
+}
+
 export interface AuthStatus {
   hasToken: boolean;
   login: string | null;
@@ -95,6 +103,8 @@ export interface PrSweepApi {
   latestSweep(): Promise<SweepResult | null>;
   syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
+  onUpdateState(cb: (state: UpdateState | null) => void): void;
+  installUpdate(): Promise<void>;
   exportProfiles(): Promise<boolean>;
   importProfiles(): Promise<SweepConfig | null>;
 }

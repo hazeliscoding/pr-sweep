@@ -20,6 +20,11 @@ const api: PrSweepApi = {
     ipcRenderer.removeAllListeners('oauth:code');
     ipcRenderer.on('oauth:code', (_e, info) => cb(info));
   },
+  onUpdateState: (cb) => {
+    ipcRenderer.removeAllListeners('update:state');
+    ipcRenderer.on('update:state', (_e, state) => cb(state));
+  },
+  installUpdate: () => ipcRenderer.invoke('update:install'),
   fetchPrs: (range, mode) => ipcRenderer.invoke('prs:fetch', range, mode),
   latestSweep: () => ipcRenderer.invoke('prs:latest'),
   syncTray: (sync) => ipcRenderer.invoke('tray:sync', sync),

@@ -8,6 +8,7 @@ import {
   SweepConfig,
   SweepConfigPatch,
   SweepResult,
+  UpdateState,
 } from './models';
 
 /**
@@ -30,6 +31,8 @@ export class BoardStore {
   /** Author chips: empty set = everyone. */
   readonly authorFilter = signal<ReadonlySet<string>>(new Set());
   readonly search = signal('');
+  /** Auto-update progress pushed from main (header pill); null = nothing in flight. */
+  readonly updateState = signal<UpdateState | null>(null);
 
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -93,6 +96,7 @@ export class BoardStore {
   }
 
   async init(): Promise<void> {
+    this.api.onUpdateState((state) => this.updateState.set(state));
     try {
       // Config + cached snapshot are local reads — paint the board with them
       // immediately. The auth probe and live sweep (both network) come after,
@@ -291,6 +295,10 @@ export class BoardStore {
 
   openPr(row: PrRow): void {
     void this.api.openExternal(row.url);
+  }
+
+  installUpdate(): void {
+    void this.api.installUpdate();
   }
 
   private armAutoRefresh(): void {
