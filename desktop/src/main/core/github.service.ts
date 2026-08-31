@@ -39,23 +39,26 @@ const INCREMENTAL_SKEW_MS = 5 * 60_000;
 /** A snapshot older than this is refetched in full rather than patched. */
 const INCREMENTAL_MAX_AGE_MS = 60 * 60_000;
 
-const SEARCH_QUERY = `
-  query ($q: String!, $after: String) {
-    search(query: $q, type: ISSUE_ADVANCED, first: ${PAGE_SIZE}, after: $after) {
-      issueCount
-      pageInfo { hasNextPage endCursor }
-      nodes {
-        ... on PullRequest {
+// statusCheckRollup and timelineItems are the two most expensive fields we
+// touch — GitHub computes them per PR, per page, and they dominate sweep
+// latency. Each search therefore requests only what its rows display:
+// merged rows show neither, open rows show the CI dot, queue rows also show
+// the review-wait badge. The incremental probe needs only keys → bare.
+const NODE_FIELDS = `
           number title url isDraft createdAt updatedAt mergedAt
           reviewDecision totalCommentsCount additions deletions
           repository { name }
           author { login avatarUrl }
           reviewRequests(first: 10) {
             nodes { requestedReviewer { ... on User { login } } }
-          }
+          }`;
+
+const CI_FIELD = `
           commits(last: 1) {
             nodes { commit { statusCheckRollup { state } } }
-          }
+          }`;
+
+const TIMELINE_FIELD = `
           timelineItems(last: 10, itemTypes: [REVIEW_REQUESTED_EVENT]) {
             nodes {
               ... on ReviewRequestedEvent {
@@ -63,12 +66,26 @@ const SEARCH_QUERY = `
                 requestedReviewer { ... on User { login } }
               }
             }
-          }
+          }`;
+
+function buildSearchQuery(extras: { ci?: boolean; timeline?: boolean }): string {
+  return `
+  query ($q: String!, $after: String) {
+    search(query: $q, type: ISSUE_ADVANCED, first: ${PAGE_SIZE}, after: $after) {
+      issueCount
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        ... on PullRequest {${NODE_FIELDS}${extras.ci ? CI_FIELD : ''}${extras.timeline ? TIMELINE_FIELD : ''}
         }
       }
     }
   }
 `;
+}
+
+const QUERY_BARE = buildSearchQuery({});
+const QUERY_OPEN = buildSearchQuery({ ci: true });
+const QUERY_QUEUE = buildSearchQuery({ ci: true, timeline: true });
 
 interface SearchNode {
   number: number;
@@ -180,9 +197,9 @@ export class GithubService {
     const today = new Date().toISOString().slice(0, 10);
     const end = range.end ?? today;
     const [open, merged, queue] = await Promise.all([
-      this.searchWindowed((a, b) => `${parts.open} updated:${a}..${b}`, range.start, end),
-      this.searchWindowed((a, b) => `${parts.merged} merged:${a}..${b}`, range.start, end),
-      this.searchAll(parts.queue).then((r) => r.nodes),
+      this.searchWindowed((a, b) => `${parts.open} updated:${a}..${b}`, range.start, end, QUERY_OPEN),
+      this.searchWindowed((a, b) => `${parts.merged} merged:${a}..${b}`, range.start, end, QUERY_BARE),
+      this.searchAll(parts.queue, QUERY_QUEUE).then((r) => r.nodes),
     ]);
     return {
       fetchedAt: new Date().toISOString(),
@@ -224,7 +241,7 @@ export class GithubService {
     // Search wants +00:00, not the Z suffix, for datetime qualifiers.
     const since = new Date(sinceMs).toISOString().replace(/\.\d{3}Z$/, '+00:00');
 
-    const changed = await this.searchAll(`org:${base.org} is:pr updated:>=${since}`);
+    const changed = await this.searchAll(`org:${base.org} is:pr updated:>=${since}`, QUERY_BARE);
     // More changes than one query can enumerate → the removal signal is
     // incomplete and patching could leave ghosts. Resweep instead.
     if (changed.total > SEARCH_CAP) return null;
@@ -234,9 +251,9 @@ export class GithubService {
 
     const mergedRange = range.end ? `merged:${range.start}..${range.end}` : `merged:>=${range.start}`;
     const [open, merged, queue] = await Promise.all([
-      this.searchAll(`${parts.open} updated:>=${since}`).then((r) => r.nodes),
-      this.searchAll(`${parts.merged} ${mergedRange} updated:>=${since}`).then((r) => r.nodes),
-      this.searchAll(`${parts.queue} updated:>=${since}`).then((r) => r.nodes),
+      this.searchAll(`${parts.open} updated:>=${since}`, QUERY_OPEN).then((r) => r.nodes),
+      this.searchAll(`${parts.merged} ${mergedRange} updated:>=${since}`, QUERY_BARE).then((r) => r.nodes),
+      this.searchAll(`${parts.queue} updated:>=${since}`, QUERY_QUEUE).then((r) => r.nodes),
     ]);
 
     const patch = (rows: PrRow[], fresh: PrRow[]): PrRow[] => {
@@ -263,9 +280,10 @@ export class GithubService {
     build: (from: string, to: string) => string,
     from: string,
     to: string,
+    doc: string,
     depth = 0,
   ): Promise<SearchNode[]> {
-    const { nodes, total } = await this.searchAll(build(from, to));
+    const { nodes, total } = await this.searchAll(build(from, to), doc);
     if (total <= SEARCH_CAP || from >= to || depth >= 8) {
       if (total > SEARCH_CAP) {
         console.warn(`[github] ${total} results in ${from}..${to} exceed the search cap — showing the first ${SEARCH_CAP}`);
@@ -274,8 +292,8 @@ export class GithubService {
     }
     const mid = midDate(from, to);
     const [a, b] = await Promise.all([
-      this.searchWindowed(build, from, mid, depth + 1),
-      this.searchWindowed(build, nextDay(mid), to, depth + 1),
+      this.searchWindowed(build, from, mid, doc, depth + 1),
+      this.searchWindowed(build, nextDay(mid), to, doc, depth + 1),
     ]);
     // Day-granular halves can't overlap for a single date field, but dedupe
     // defensively — a duplicate row is worse than a wasted comparison.
@@ -288,14 +306,14 @@ export class GithubService {
     });
   }
 
-  private async searchAll(q: string): Promise<{ nodes: SearchNode[]; total: number }> {
+  private async searchAll(q: string, doc: string = QUERY_BARE): Promise<{ nodes: SearchNode[]; total: number }> {
     const nodes: SearchNode[] = [];
     let after: string | null = null;
     let total = 0;
     // The search cap is SEARCH_CAP results = SEARCH_CAP / PAGE_SIZE pages; the
     // guard also keeps a backend pagination bug from spinning forever.
     for (let page = 0; page < SEARCH_CAP / PAGE_SIZE; page++) {
-      const data: SearchPage = await this.graphql(SEARCH_QUERY, { q, after });
+      const data: SearchPage = await this.graphql(doc, { q, after });
       total = data.search.issueCount ?? 0;
       // Non-PR results (the search type is issue-shaped) come back as empty
       // objects from the inline fragment — drop them.

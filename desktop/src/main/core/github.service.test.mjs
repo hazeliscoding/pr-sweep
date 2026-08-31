@@ -408,4 +408,56 @@ await assert.rejects(
   assert.equal(result.open[0].reviewRequestedAt, null, 'non-queue rows skip the lookup');
 }
 
+// --- expensive fields are fetched only where their rows display them ---
+// statusCheckRollup and timelineItems dominate sweep latency; the merged list
+// (often the sweep's biggest) must request neither, and only queue rows need
+// the timeline. The incremental probe needs keys only → bare document.
+{
+  const docs = {};
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('review-requested')) docs.queue = body.query;
+    else if (q.includes('is:merged')) docs.merged = body.query;
+    else if (q.includes('is:open')) docs.open = body.query;
+    else docs.probe = body.query;
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok');
+  await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  const base = {
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [row(1, 'needs-review')],
+    merged: [],
+    queue: [],
+  };
+  // Force the delta queries too (probe must return a change).
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('review-requested')) docs.queue = body.query;
+    else if (q.includes('is:merged')) docs.merged = body.query;
+    else if (q.includes('is:open')) docs.open = body.query;
+    else {
+      docs.probe = body.query;
+      return json(page([node(1, null)]));
+    }
+    return json(page([]));
+  };
+  await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+
+  assert.ok(docs.open.includes('statusCheckRollup'), 'open rows fetch CI');
+  assert.ok(!docs.open.includes('timelineItems'), 'open rows skip the timeline');
+  assert.ok(!docs.merged.includes('statusCheckRollup'), 'merged rows skip CI');
+  assert.ok(!docs.merged.includes('timelineItems'), 'merged rows skip the timeline');
+  assert.ok(docs.queue.includes('statusCheckRollup'), 'queue rows fetch CI');
+  assert.ok(docs.queue.includes('timelineItems'), 'queue rows fetch the timeline');
+  assert.ok(!docs.probe.includes('statusCheckRollup'), 'changed probe stays bare');
+  assert.ok(!docs.probe.includes('timelineItems'), 'changed probe stays bare');
+}
+
 console.log('github.service: query construction, bucketing, retry, windowing, incremental + CI cases pass');
