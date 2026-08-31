@@ -22,6 +22,14 @@ import { TrayController, TraySync } from './tray';
 // (Also keeps dev and packaged builds on the same folder.)
 app.setName('pr-sweep');
 
+// One instance owns the tray. Close-to-tray hides the window, so relaunching
+// from the Start Menu is common — without this lock every launch spawns a
+// second app (two tray icons, double sweeps, duplicate toasts). A second
+// launch instead surfaces the running instance's window and exits.
+const isPrimaryInstance = app.requestSingleInstanceLock();
+if (!isPrimaryInstance) app.quit();
+app.on('second-instance', () => showWindow());
+
 let win: BrowserWindow | null = null;
 let tray: TrayController | null = null;
 let services: Services | null = null;
@@ -136,6 +144,9 @@ function setupAutoUpdate(): void {
 }
 
 app.whenReady().then(async () => {
+  // A losing second instance is already quitting — don't flash a window/tray
+  // in the moment before the quit lands.
+  if (!isPrimaryInstance) return;
   if (process.platform === 'win32') app.setAppUserModelId('dev.prsweep.app');
 
   const userDataDir = app.getPath('userData');
