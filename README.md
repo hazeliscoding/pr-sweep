@@ -14,7 +14,10 @@ changes requested, what's approved, and what merged — this sprint.**
 - 📋 **Status board** — dense tables for Needs review · Changes requested · Approved · Merged,
   bucketed from GitHub's actual `reviewDecision`. No labels, no manual bookkeeping.
 - 🙋 **My queue** — a section for open PRs anywhere in the org with *your* review requested,
-  so nothing waiting on you slips through.
+  so nothing waiting on you slips through — each row shows how long it's been waiting on you,
+  flagged when it passes the stale threshold.
+- 🚦 **CI status** — every open PR shows its latest commit's check rollup as a
+  green/red/amber dot, so "approved" and "actually ready to merge" stop being confused.
 - ⏳ **Stale flags** — open PRs untouched past a configurable threshold are highlighted; toggle
   draft PRs on or off.
 - 📅 **Date-range scoped** — pick From/To dates in the header and they persist; leave "To" empty
@@ -27,9 +30,10 @@ changes requested, what's approved, and what merged — this sprint.**
 - ⚡ **Instant boot** — the last sweep is cached to disk and shown immediately on launch,
   then refreshed quietly in the background.
 - 🔗 **Click a row** → PR opens in your browser.
-- 🔔 **Tray + notifications** — lives in the system tray with live counts and a desktop toast
-  when a PR lands in your review queue (click it to open the PR). Closing the window keeps it
-  running in the tray so it keeps watching.
+- 🔔 **Tray + notifications** — lives in the system tray with live counts and desktop toasts
+  for both directions of the loop: a PR lands in your review queue, or one of *your* PRs gets
+  approved, gets changes requested, or starts failing CI (click a toast to open the PR).
+  Closing the window keeps it running in the tray so it keeps watching.
 - 🔄 Auto-refresh (default every 5 min), manual Refresh button.
 - 🌗 Light/dark theme toggle; follows the OS on first run, choice persists per machine.
 - 🔑 **Sign in with GitHub** (device flow) — no token to copy-paste; personal-access-token

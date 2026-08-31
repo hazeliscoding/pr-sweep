@@ -56,6 +56,10 @@ export interface PrRow {
   additions: number;
   deletions: number;
   requestedReviewers: string[];
+  /** Latest commit's check rollup as a traffic light; null = no checks configured. */
+  ci: 'success' | 'failure' | 'pending' | null;
+  /** When the signed-in user's review was requested — set on queue rows, null elsewhere. */
+  reviewRequestedAt: string | null;
 }
 
 export interface SweepResult {
@@ -89,7 +93,7 @@ export interface PrSweepApi {
    */
   fetchPrs(range: DateRange, mode?: 'full' | 'auto'): Promise<SweepResult>;
   latestSweep(): Promise<SweepResult | null>;
-  syncTray(sync: { queue: PrRow[]; needsReviewCount: number }): Promise<void>;
+  syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
   exportProfiles(): Promise<boolean>;
   importProfiles(): Promise<SweepConfig | null>;

@@ -5,8 +5,10 @@ import { PrRow } from '../models';
 interface BoardSection {
   title: string;
   rows: PrRow[];
-  /** Merged rows date from merge time and don't have outstanding reviewers. */
+  /** Merged rows date from merge time and don't have outstanding reviewers or CI. */
   merged: boolean;
+  /** The "waiting on my review" section gets review-wait badges. */
+  queue?: boolean;
   emptyNote: string;
 }
 
@@ -81,6 +83,9 @@ interface BoardSection {
             <thead>
               <tr>
                 <th>PR</th>
+                @if (!section.merged) {
+                  <th class="ci-col" title="Latest commit's checks">CI</th>
+                }
                 <th>Title</th>
                 <th>Author</th>
                 <th class="num">Comments</th>
@@ -104,10 +109,30 @@ interface BoardSection {
                   (keydown.space)="store.openPr(pr); $event.preventDefault()"
                 >
                   <td class="pr-ref">{{ pr.repo }}#{{ pr.number }}</td>
+                  @if (!section.merged) {
+                    <td class="ci-col">
+                      @if (pr.ci; as ci) {
+                        <span
+                          class="ci-dot ci-{{ ci }}"
+                          [attr.aria-label]="'CI ' + ci"
+                          [title]="'CI ' + ci"
+                        ></span>
+                      }
+                    </td>
+                  }
                   <td>
                     {{ pr.title }}
                     @if (pr.isDraft) {
                       <span class="draft-tag">draft</span>
+                    }
+                    @if (section.queue && waitingDays(pr) >= 1) {
+                      <span
+                        class="wait-tag"
+                        [class.wait-hot]="isWaitHot(pr)"
+                        [title]="'Your review was requested ' + waitingDays(pr) + ' day(s) ago'"
+                      >
+                        waiting {{ waitingDays(pr) }}d
+                      </span>
                     }
                   </td>
                   <td>{{ pr.author }}</td>
@@ -139,6 +164,7 @@ export class BoardComponent {
       title: 'Waiting on my review',
       rows: this.store.queue(),
       merged: false,
+      queue: true,
       emptyNote: 'Nothing waiting on you.',
     },
     {
@@ -175,6 +201,18 @@ export class BoardComponent {
   isStale(pr: PrRow): boolean {
     const days = this.store.activeProfile()?.staleDays ?? 0;
     return days > 0 && Date.now() - Date.parse(pr.updatedAt) > days * 86_400_000;
+  }
+
+  /** Whole days since the viewer's review was requested (0 when unknown). */
+  waitingDays(pr: PrRow): number {
+    if (!pr.reviewRequestedAt) return 0;
+    return Math.floor((Date.now() - Date.parse(pr.reviewRequestedAt)) / 86_400_000);
+  }
+
+  /** Waiting past the same threshold the stale flag uses (0 = never hot). */
+  isWaitHot(pr: PrRow): boolean {
+    const days = this.store.activeProfile()?.staleDays ?? 0;
+    return days > 0 && this.waitingDays(pr) >= days;
   }
 
   ago(pr: PrRow): string {

@@ -129,11 +129,14 @@ export class BoardStore {
       const result = await this.api.fetchPrs(range, opts.auto ? 'auto' : 'full');
       this.result.set(result);
       this.error.set(null);
-      // Hand the queue to the tray (counts + review-request toasts). The needs-
-      // review count uses the raw result, not the filtered view, so background
-      // toasts don't depend on whatever author/text filter is active.
+      // Hand the tray its slices: the queue (counts + review-request toasts)
+      // and my own open PRs (approval / changes-requested / CI-failure toasts).
+      // Both use the raw result, not the filtered view, so background toasts
+      // don't depend on whatever author/text filter is active.
       const needsReview = result.open.filter((r) => r.bucket === 'needs-review').length;
-      void this.api.syncTray({ queue: result.queue, needsReviewCount: needsReview });
+      const login = this.auth()?.login;
+      const mine = login ? result.open.filter((r) => r.author === login) : [];
+      void this.api.syncTray({ queue: result.queue, mine, needsReviewCount: needsReview });
     } catch (e) {
       // A background refresh failing (laptop offline) shouldn't blank a board
       // that's already showing data — surface quietly only for manual actions.

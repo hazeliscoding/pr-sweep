@@ -75,6 +75,10 @@ export interface PrRow {
   deletions: number;
   /** Logins with an outstanding review request. */
   requestedReviewers: string[];
+  /** Latest commit's check rollup as a traffic light; null = no checks configured. */
+  ci: 'success' | 'failure' | 'pending' | null;
+  /** When the signed-in user's review was requested — set on queue rows, null elsewhere. */
+  reviewRequestedAt: string | null;
 }
 
 export interface SweepResult {
@@ -115,8 +119,12 @@ export interface PrSweepApi {
   fetchPrs(range: DateRange, mode?: 'full' | 'auto'): Promise<SweepResult>;
   /** Last sweep cached on disk, or null — for instant boot before the live refresh lands. */
   latestSweep(): Promise<SweepResult | null>;
-  /** Push the latest queue to the tray for counts + review-request toasts. */
-  syncTray(sync: { queue: PrRow[]; needsReviewCount: number }): Promise<void>;
+  /**
+   * Push the latest sweep's tray-relevant slices: the review queue (counts +
+   * review-request toasts) and the viewer's own open PRs (approval / changes-
+   * requested / CI-failure toasts).
+   */
+  syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
   /** Write the profiles to a JSON file the user picks. Returns false if cancelled. */
   exportProfiles(): Promise<boolean>;

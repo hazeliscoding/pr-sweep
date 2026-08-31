@@ -1,8 +1,10 @@
 /**
- * System-tray presence and review-queue notifications. The renderer pushes its
- * latest queue after every sweep (see the 'tray:sync' IPC); this module turns
- * that into a tray tooltip with live counts, an alert-badged icon when your
- * queue is non-empty, and a desktop toast for each PR that newly lands in it.
+ * System-tray presence and desktop notifications. The renderer pushes the
+ * tray-relevant slices of every sweep (see the 'tray:sync' IPC); this module
+ * turns them into a tooltip with live counts, an alert-badged icon when your
+ * queue is non-empty, and desktop toasts for the two directions of the daily
+ * loop: reviewer-side (a PR newly lands in your queue) and author-side (one of
+ * *your* PRs gets approved, gets changes requested, or starts failing CI).
  */
 import { app, Menu, nativeImage, Notification, shell, Tray } from 'electron';
 import * as path from 'path';
@@ -11,6 +13,8 @@ import { PrRow } from '../shared/types';
 
 export interface TraySync {
   queue: PrRow[];
+  /** The signed-in user's own open PRs — the author-side notification source. */
+  mine: PrRow[];
   needsReviewCount: number;
 }
 
@@ -23,6 +27,8 @@ export class TrayController {
   /** null until the first sync — so a queue that's non-empty at launch doesn't
       toast every item as if it were brand new. */
   private known: Set<string> | null = null;
+  /** Same pattern for the author's own PRs: toast on transitions, not on launch. */
+  private mineKnown: Map<string, { bucket: PrRow['bucket']; ci: PrRow['ci'] }> | null = null;
 
   constructor(
     private readonly config: ConfigService,
@@ -42,20 +48,39 @@ export class TrayController {
     this.render(0, 0);
   }
 
-  sync({ queue, needsReviewCount }: TraySync): void {
+  sync({ queue, mine, needsReviewCount }: TraySync): void {
+    const toastable = this.config.get().notifications && Notification.isSupported();
     const keys = new Set(queue.map(key));
-    if (this.known && this.config.get().notifications && Notification.isSupported()) {
+    if (this.known && toastable) {
       for (const pr of queue) {
-        if (!this.known.has(key(pr))) this.notify(pr);
+        if (!this.known.has(key(pr))) this.notify('Review requested', pr);
       }
     }
     this.known = keys;
+
+    // Author-side: toast state *transitions* on PRs we already knew about.
+    // A PR seen for the first time (launch, or freshly opened) sets a baseline
+    // without toasting — its current state isn't news the user caused us to miss.
+    const rows = mine ?? [];
+    if (this.mineKnown && toastable) {
+      for (const pr of rows) {
+        const prev = this.mineKnown.get(key(pr));
+        if (!prev) continue;
+        if (pr.bucket !== prev.bucket && pr.bucket === 'approved') this.notify('PR approved', pr);
+        if (pr.bucket !== prev.bucket && pr.bucket === 'changes-requested') {
+          this.notify('Changes requested', pr);
+        }
+        if (pr.ci === 'failure' && prev.ci !== 'failure') this.notify('CI failed', pr);
+      }
+    }
+    this.mineKnown = new Map(rows.map((pr) => [key(pr), { bucket: pr.bucket, ci: pr.ci }]));
+
     this.render(queue.length, needsReviewCount);
   }
 
-  private notify(pr: PrRow): void {
+  private notify(title: string, pr: PrRow): void {
     const n = new Notification({
-      title: 'Review requested',
+      title,
       body: `${key(pr)} — ${pr.title}`,
     });
     n.on('click', () => {

@@ -53,6 +53,17 @@ const SEARCH_QUERY = `
           reviewRequests(first: 10) {
             nodes { requestedReviewer { ... on User { login } } }
           }
+          commits(last: 1) {
+            nodes { commit { statusCheckRollup { state } } }
+          }
+          timelineItems(last: 10, itemTypes: [REVIEW_REQUESTED_EVENT]) {
+            nodes {
+              ... on ReviewRequestedEvent {
+                createdAt
+                requestedReviewer { ... on User { login } }
+              }
+            }
+          }
         }
       }
     }
@@ -74,6 +85,16 @@ interface SearchNode {
   repository: { name: string };
   author: { login: string; avatarUrl: string } | null;
   reviewRequests: { nodes: Array<{ requestedReviewer: { login?: string } | null }> };
+  commits?: {
+    nodes: Array<{
+      commit: {
+        statusCheckRollup: { state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' } | null;
+      };
+    }>;
+  };
+  timelineItems?: {
+    nodes: Array<{ createdAt?: string; requestedReviewer?: { login?: string } | null }>;
+  };
 }
 
 interface SearchPage {
@@ -152,7 +173,7 @@ export class GithubService {
     };
 
     if (this.canPatch(base, profile.org, range)) {
-      const patched = await this.incrementalSweep(base, parts, range);
+      const patched = await this.incrementalSweep(base, parts, range, login);
       if (patched) return patched;
     }
 
@@ -169,7 +190,8 @@ export class GithubService {
       range,
       open: open.map((n) => toRow(n, bucketOf(n))),
       merged: merged.map((n) => toRow(n, 'merged')),
-      queue: queue.map((n) => toRow(n, bucketOf(n))),
+      // Queue rows resolve "when was *my* review requested" from the timeline.
+      queue: queue.map((n) => toRow(n, bucketOf(n), login)),
     };
   }
 
@@ -191,6 +213,7 @@ export class GithubService {
     base: SweepResult,
     parts: { open: string; merged: string; queue: string },
     range: DateRange,
+    login: string,
   ): Promise<SweepResult | null> {
     // `since` never reaches before the range start, so the looser updated:>=
     // filter on the open delta can't smuggle in rows the range would exclude.
@@ -226,7 +249,7 @@ export class GithubService {
       range,
       open: patch(base.open, open.map((n) => toRow(n, bucketOf(n)))),
       merged: patch(base.merged, merged.map((n) => toRow(n, 'merged'))),
-      queue: patch(base.queue, queue.map((n) => toRow(n, bucketOf(n)))),
+      queue: patch(base.queue, queue.map((n) => toRow(n, bucketOf(n), login))),
     };
   }
 
@@ -368,7 +391,7 @@ function bucketOf(n: SearchNode): ReviewBucket {
   }
 }
 
-function toRow(n: SearchNode, bucket: ReviewBucket): PrRow {
+function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string): PrRow {
   return {
     repo: n.repository.name,
     number: n.number,
@@ -387,7 +410,29 @@ function toRow(n: SearchNode, bucket: ReviewBucket): PrRow {
     requestedReviewers: n.reviewRequests.nodes
       .map((r) => r.requestedReviewer?.login)
       .filter((l): l is string => !!l),
+    ci: ciOf(n),
+    reviewRequestedAt: viewer ? requestedAtFor(n, viewer) : null,
   };
+}
+
+/** Latest commit's check rollup, collapsed to a traffic light (null = no checks). */
+function ciOf(n: SearchNode): PrRow['ci'] {
+  const state = n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state;
+  if (!state) return null;
+  if (state === 'SUCCESS') return 'success';
+  if (state === 'FAILURE' || state === 'ERROR') return 'failure';
+  return 'pending'; // PENDING / EXPECTED
+}
+
+/** Newest REVIEW_REQUESTED_EVENT naming `viewer` — when their review was asked for. */
+function requestedAtFor(n: SearchNode, viewer: string): string | null {
+  const events = n.timelineItems?.nodes ?? [];
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i]?.requestedReviewer?.login === viewer && events[i].createdAt) {
+      return events[i].createdAt ?? null;
+    }
+  }
+  return null;
 }
 
 const nodeKey = (n: SearchNode): string => `${n.repository.name}#${n.number}`;

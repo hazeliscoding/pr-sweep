@@ -121,6 +121,31 @@ td.stale { color: var(--color-warning); font-weight: var(--fw-bold); }
 }
 td.why { font-size: var(--fs-caption); color: var(--color-text-secondary); line-height: var(--lh-dense); }
 
+/* CI traffic light: latest commit's check rollup (absent cell = no checks) */
+.ci-col { width: 28px; text-align: center; }
+.ci-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+.ci-success { background: var(--color-success); }
+.ci-failure { background: var(--color-error); }
+.ci-pending { background: var(--color-warning); }
+
+/* review-wait cue on queue rows: how long a PR has been waiting on you */
+.wait-tag {
+  font-size: var(--fs-caption);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-panel);
+  padding: 0 var(--space-2);
+  margin-left: var(--space-2);
+  white-space: nowrap;
+}
+.wait-tag.wait-hot { color: var(--color-warning); border-color: var(--color-warning); font-weight: var(--fw-bold); }
+
 /* ===== buttons ===== */
 button, .btn {
   font-family: var(--font-sans);

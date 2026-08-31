@@ -349,4 +349,63 @@ await assert.rejects(
   assert.ok(!queries.some((q) => q.includes('updated:>=')), 'no incremental cutoff used');
 }
 
-console.log('github.service: query construction, bucketing, retry, windowing + incremental cases pass');
+// --- CI rollup maps to a traffic light; absent checks stay null ---
+{
+  const rollup = (state) => ({ commits: { nodes: [{ commit: { statusCheckRollup: state ? { state } : null } }] } });
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('review-requested') || q.includes('is:merged')) return json(page([]));
+    return json(
+      page([
+        node(1, null, rollup('SUCCESS')),
+        node(2, null, rollup('FAILURE')),
+        node(3, null, rollup('ERROR')),
+        node(4, null, rollup('PENDING')),
+        node(5, null, rollup(null)),
+        node(6, null), // no commits field at all
+      ]),
+    );
+  };
+  const svc = new GithubService(() => 'tok');
+  const { open } = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  const ci = (n) => open.find((r) => r.number === n)?.ci;
+  assert.equal(ci(1), 'success');
+  assert.equal(ci(2), 'failure');
+  assert.equal(ci(3), 'failure', 'ERROR counts as failure');
+  assert.equal(ci(4), 'pending');
+  assert.equal(ci(5), null, 'no rollup → null');
+  assert.equal(ci(6), null, 'missing commits → null');
+}
+
+// --- queue rows resolve when *my* review was requested; other rows stay null ---
+{
+  const timeline = {
+    timelineItems: {
+      nodes: [
+        { createdAt: '2026-08-10T00:00:00Z', requestedReviewer: { login: 'me' } },
+        { createdAt: '2026-08-12T00:00:00Z', requestedReviewer: { login: 'other' } },
+        { createdAt: '2026-08-20T00:00:00Z', requestedReviewer: { login: 'me' } },
+      ],
+    },
+  };
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('review-requested')) return json(page([node(10, 'REVIEW_REQUIRED', timeline)]));
+    if (q.includes('is:merged')) return json(page([]));
+    return json(page([node(1, null, timeline)]));
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.equal(
+    result.queue[0].reviewRequestedAt,
+    '2026-08-20T00:00:00Z',
+    'newest request naming the viewer wins',
+  );
+  assert.equal(result.open[0].reviewRequestedAt, null, 'non-queue rows skip the lookup');
+}
+
+console.log('github.service: query construction, bucketing, retry, windowing, incremental + CI cases pass');

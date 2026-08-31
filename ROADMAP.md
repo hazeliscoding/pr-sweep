@@ -39,6 +39,14 @@ it's clunky.
 - [x] Keyboard navigation / accessibility pass (focusable PR rows, dialog semantics, focus rings)
 - [ ] Screenshot driver as a CI smoke test *(deferred — needs a headed runner + token secret)*
 
+## v0.10 — Action signals ✅
+Theme: the board tells you what actually needs *action*, not just what exists.
+- [x] CI status dot on every open PR (latest commit's check rollup: green/red/amber)
+- [x] Author-side notifications — toast when your PR is approved, gets changes
+      requested, or starts failing CI (reviewer-side queue toasts already existed)
+- [x] Review-wait badges in "My queue" — how long each PR has been waiting on you,
+      flagged past the stale threshold
+
 ## v0.9 → 1.0 — Polish and platforms
 - [x] Linux build — AppImage with auto-update, built and published by the release workflow
 - [ ] macOS build *(blocked on an Apple Developer Program membership: Gatekeeper blocks
