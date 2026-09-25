@@ -77,6 +77,11 @@ what to do next.
   time depends on org activity: when anything in the org changed since the last sweep, the
   refresh runs three more searches (4 requests, about 2 s). Compare auto-refreshes with the same
   request count.
+- **Whole-org views on big orgs stay at about 110 s for v0.11.** Their time goes to 60 s waits
+  on GitHub's secondary rate limit (403 with Retry-After). The waits track the number of search
+  requests: the team profile (8–9 requests per sweep) almost never hits one, and whole-org
+  (30–70) always does. Remembering shrunken page sizes across searches was tried and reverted,
+  because smaller pages meant more requests (172 s median instead of 109 s).
 - **`NEEDS_RE_REVIEW` is a reason of its own.** "Changes requested" has two next steps: the
   author's (address the feedback) and the reviewer's (re-review after the push).
 - **Sprint-end risk is a header line, not a row reason.** As a reason it would flag nearly every
@@ -273,6 +278,8 @@ Theme: nothing new. Make what exists boringly reliable.
 
 ## Later
 
+- Faster whole-org views on very large orgs: pace searches under GitHub's secondary rate
+  limit instead of waiting out 403s
 - AI "explain this sprint", built on the attention engine
 - Grouping by linked issues (`closingIssuesReferences`) and GitHub Projects
 - Review-wait metrics for merged PRs (needs review timestamps on every merged PR, which is
