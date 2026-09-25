@@ -414,7 +414,7 @@ export class GithubService {
     } catch (e) {
       // Network blip — same treatment as a transient server error.
       if (attempt >= MAX_RETRIES) throw e;
-      await sleep(this.backoff(attempt));
+      await this.pause('network error', this.backoff(attempt));
       return this.graphql(query, variables, attempt + 1, shrinkable);
     }
     if (res.status === 401) throw new Error('GitHub rejected the token (401). Replace it in Settings.');
@@ -426,7 +426,7 @@ export class GithubService {
       // moment (big GraphQL queries 502 more than they should). Honor the
       // server-stated wait when there is one, back off exponentially otherwise.
       if (attempt < MAX_RETRIES && [403, 429, 502, 503, 504].includes(res.status)) {
-        await sleep(this.retryAfter(res) ?? this.backoff(attempt));
+        await this.pause(`HTTP ${res.status}`, this.retryAfter(res) ?? this.backoff(attempt));
         return this.graphql(query, variables, attempt + 1, shrinkable);
       }
       throw new Error(`GitHub API error: HTTP ${res.status}`);
@@ -438,7 +438,7 @@ export class GithubService {
       // Queries GitHub gives up on can also arrive as a 200 with a cut-off body.
       if (shrinkable) throw new GithubTimeout('GitHub API returned a truncated response.');
       if (attempt < MAX_RETRIES) {
-        await sleep(this.backoff(attempt));
+        await this.pause('truncated response', this.backoff(attempt));
         return this.graphql(query, variables, attempt + 1, shrinkable);
       }
       throw new Error('GitHub API returned a truncated response.');
@@ -451,7 +451,7 @@ export class GithubService {
     if (body.errors?.length) {
       // GraphQL rate limiting arrives as an HTTP 200 with a typed error.
       if (attempt < MAX_RETRIES && body.errors.some((e) => e.type === 'RATE_LIMITED')) {
-        await sleep(this.retryAfter(res) ?? this.backoff(attempt));
+        await this.pause('RATE_LIMITED', this.retryAfter(res) ?? this.backoff(attempt));
         return this.graphql(query, variables, attempt + 1, shrinkable);
       }
       throw new Error(`GitHub API error: ${body.errors[0].message}`);
@@ -471,6 +471,12 @@ export class GithubService {
       }
     }
     return null;
+  }
+
+  /** Sleep before a retry; PRSWEEP_DEBUG says why and for how long. */
+  private async pause(reason: string, ms: number): Promise<void> {
+    if (process.env.PRSWEEP_DEBUG) console.log(`[github] retry after ${reason}, waiting ${(ms / 1000).toFixed(1)} s`);
+    await sleep(ms);
   }
 
   private backoff(attempt: number): number {
