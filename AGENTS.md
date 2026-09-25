@@ -64,6 +64,18 @@ organization. It ships for Windows and Linux.
 - No AI features before 1.0.
 - Windows and Linux only. macOS is not planned.
 
+## Brand
+
+- The assets are in `docs/brand/`. `mark.svg` is the source of the app icon. `lockup.svg` is for
+  light backgrounds and `lockup-dark.svg` for dark ones.
+- The mark: a gold (`#d1a249`) main branch and a blue (`#98c6ff`) feature branch merging, on a
+  navy (`#001740`) tile. These are the app's light primary, gold and dark accent.
+- The wordmark is Manrope ExtraBold (800) with -0.02em tracking, converted to vector paths. It is
+  navy `#001740` on light and white on dark. Use the SVGs; don't re-typeset it with a web font.
+- `desktop/build/icon.png` (512px) is rendered from `docs/brand/mark.svg`. `tray.png` and
+  `tray-alert.png` (256px) are the same mark, and the alert one adds a red badge. Re-render the
+  PNGs whenever the mark changes.
+
 ## Commands
 
 Run these from the repo root unless noted.

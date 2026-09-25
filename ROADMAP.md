@@ -36,6 +36,10 @@ what to do next.
 - **macOS is not planned for now.** There's no Mac to build and test on, and no Apple Developer
   Program membership. Gatekeeper blocks unsigned apps and macOS auto-update needs a signed build,
   so shipping unsigned would be worse than not shipping. Revisit if either changes.
+- **Brand** keeps the existing mark: a gold main branch and a blue feature branch merging, on a
+  navy tile. It gains a wordmark in Manrope ExtraBold, converted to vector paths, taken from the
+  lockup layout of logo design 1b. Design 1b's own mark was considered and dropped. The assets are
+  in `docs/brand/`, with `-dark` files for dark backgrounds.
 
 ## Shipped
 
