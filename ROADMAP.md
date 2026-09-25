@@ -171,8 +171,12 @@ the `release/v0.11` branch.
 - [x] Merged search in weekly windows, fetched in parallel with at most 4 in flight. Each window
       still splits itself past 1000 results. *Measured: the team profile's full sweep dropped to
       10.8 s median (9.7–13.4 s, plus one 69.9 s run that hit a retry), from 28.9 s.*
-- [ ] Page-size fallback: a page that still fails with 502 or 504 after the normal retries is
-      retried at 50, then 25, before the sweep reports an error.
+- [x] Page-size fallback: a search page that fails with 502 or 504, or arrives as a 200 with a
+      cut-off body, is re-sent at 50, then 25, before the normal retries. Re-sending the same
+      request first would only add backoff: those are timeouts on queries too heavy to answer.
+      *Measured: the team profile's full sweep takes 8.9 s median, and the whole-org view
+      completes in 5 of 5 runs (109 s median, 93–173 s). Most of that time is 60 s waits on
+      GitHub's secondary rate limit (403 with Retry-After), 4–9 per whole-org sweep.*
 - [ ] Data, then measure against the budget:
   - the open search gains `id`, `reviewRequests.totalCount`, team slugs and the last commit's
     `committedDate`. Review requests to teams now count, and the "Awaiting" column shows them.
