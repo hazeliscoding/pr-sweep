@@ -5,3 +5,10 @@ out-tsc/
 .angular/
 *.log
 desktop/e2e/shots/
+
+# Local tool output
+.playwright-mcp/
+
+# Agent guidelines are committed; this overrides the global gitignore
+!AGENTS.md
+!CLAUDE.md
