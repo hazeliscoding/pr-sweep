@@ -97,8 +97,12 @@ Run these from the repo root unless noted.
 ## Releases
 
 - The app version lives in `desktop/package.json`. The root `package.json` version isn't used.
-- Bump the version in the same commit as the change and end the subject with it:
-  `fix: single-instance lock … (v0.10.4)`.
+- **Each roadmap release gets its own branch**, `release/vX.Y`, cut from `main`. All of that
+  milestone's commits go there. When its "Done when" holds, open a pull request to `main` (CI
+  runs on it), merge, then tag `vX.Y.0` on `main`.
+- A roadmap release bumps the version once, in the last commit on its branch:
+  `chore(release): v0.11.0`. A patch outside a milestone bumps it in the fix commit and ends the
+  subject with it: `fix: single-instance lock … (v0.10.4)`.
 - Pushing a `v*` tag runs `.github/workflows/release.yml`. It builds the signed Windows installer,
   the portable exe and the Linux AppImage, then publishes one GitHub release. The `latest*.yml`
   files and blockmaps must ship with every release, because the auto-updater reads them.
