@@ -16,6 +16,8 @@
  * Big-org behavior:
  *  - date-windowed queries split themselves when they'd hit the 1000-result cap,
  *    so a busy quarter still sweeps completely instead of silently truncating.
+ *  - the full sweep's merged list runs one week per search, a few in flight,
+ *    instead of paging through the whole range one request at a time.
  *  - rate limits (primary and secondary) and transient 5xx are retried with the
  *    server-stated wait when GitHub provides one, exponential backoff otherwise.
  *  - auto-refreshes can run incrementally against the previous sweep: one cheap
@@ -31,6 +33,15 @@ const GRAPHQL_URL = 'https://api.github.com/graphql';
 const PAGE_SIZE = 100;
 /** GitHub search returns at most this many results per query, full stop. */
 const SEARCH_CAP = 1000;
+/**
+ * The full sweep's merged search runs one week per query, a few at a time. A
+ * single query over the range pages through it one request after another, and
+ * that made up most of a full sweep (28.9 s on a 5-author electron team in
+ * v0.10.4). The cap keeps concurrent searches clear of GitHub's secondary rate
+ * limits.
+ */
+const MERGED_WINDOW_DAYS = 7;
+const MERGED_CONCURRENCY = 4;
 const MAX_RETRIES = 3;
 /** Never sleep longer than this on a rate limit — surface the error instead. */
 const MAX_RETRY_WAIT_MS = 120_000;
@@ -227,7 +238,7 @@ export class GithubService {
     const end = range.end ?? today;
     const [open, merged, queue] = await Promise.all([
       this.searchWindowed((a, b) => `${parts.open} updated:${a}..${b}`, range.start, end, QUERY_OPEN),
-      this.searchWindowed((a, b) => `${parts.merged} merged:${a}..${b}`, range.start, end, QUERY_BARE),
+      this.searchMerged(parts.merged, range.start, end),
       this.searchAll(parts.queue, QUERY_QUEUE).then((r) => r.nodes),
     ]);
     return {
@@ -324,17 +335,17 @@ export class GithubService {
     const mid = midDate(from, to);
     const [a, b] = await Promise.all([
       this.searchWindowed(build, from, mid, doc, depth + 1),
-      this.searchWindowed(build, nextDay(mid), to, doc, depth + 1),
+      this.searchWindowed(build, addDays(mid, 1), to, doc, depth + 1),
     ]);
-    // Day-granular halves can't overlap for a single date field, but dedupe
-    // defensively — a duplicate row is worse than a wasted comparison.
-    const seen = new Set<string>();
-    return [...a, ...b].filter((n) => {
-      const k = nodeKey(n);
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
+    return uniqueNodes([...a, ...b]);
+  }
+
+  /** Merged PRs in from..to, one week per search with MERGED_CONCURRENCY in flight. */
+  private async searchMerged(q: string, from: string, to: string): Promise<SearchNode[]> {
+    const weeks = await mapLimit(windows(from, to, MERGED_WINDOW_DAYS), MERGED_CONCURRENCY, ([a, b]) =>
+      this.searchWindowed((x, y) => `${q} merged:${x}..${y}`, a, b, QUERY_BARE),
+    );
+    return uniqueNodes(weeks.flat());
   }
 
   private async searchAll(q: string, doc: string = QUERY_BARE): Promise<{ nodes: SearchNode[]; total: number }> {
@@ -496,6 +507,42 @@ function midDate(from: string, to: string): string {
   return mid.toISOString().slice(0, 10);
 }
 
-function nextDay(date: string): string {
-  return new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Consecutive `days`-long windows covering from..to, the last one cut short at `to`. */
+function windows(from: string, to: string, days: number): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  for (let start = from; start <= to; start = addDays(start, days)) {
+    const end = addDays(start, days - 1);
+    out.push([start, end < to ? end : to]);
+  }
+  return out;
+}
+
+/** Windows can't overlap for a single date field, but dedupe defensively — a
+    duplicate row is worse than a wasted comparison. */
+function uniqueNodes(nodes: SearchNode[]): SearchNode[] {
+  const seen = new Set<string>();
+  return nodes.filter((n) => {
+    const k = nodeKey(n);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/** Like Promise.all over `items.map(fn)`, but with at most `limit` calls in flight. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
 }

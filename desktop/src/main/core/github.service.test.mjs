@@ -90,7 +90,7 @@ async function runSweep(config, range) {
       return json(page([node(10, 'REVIEW_REQUIRED')]));
     }
     if (q.includes('is:merged')) {
-      queries.merged = q;
+      (queries.merged ??= []).push(q);
       return json(page([node(20, null, { mergedAt: '2026-08-05T00:00:00Z' })]));
     }
     queries.open = q;
@@ -118,7 +118,9 @@ async function runSweep(config, range) {
   assert.match(queries.open, /draft:false/, 'hides drafts by default');
   assert.match(queries.open, /\(author:alice OR author:bob\)/, 'ORs the authors');
   assert.match(queries.open, /updated:2026-08-01\.\.\d{4}-\d{2}-\d{2}/, 'open-ended range closes at today');
-  assert.match(queries.merged, /merged:2026-08-01\.\.\d{4}-\d{2}-\d{2}/, 'open-ended merged closes at today');
+  const today = new Date().toISOString().slice(0, 10);
+  assert.ok(queries.merged.some((q) => q.includes('merged:2026-08-01..2026-08-07')), 'first week starts at the range start');
+  assert.ok(queries.merged.some((q) => q.endsWith(`..${today}`)), 'open-ended merged closes at today');
   assert.match(queries.queue, /review-requested:me/, 'queue uses the viewer login');
 
   const bucket = (n) => result.open.find((r) => r.number === n)?.bucket;
@@ -139,10 +141,20 @@ async function runSweep(config, range) {
   assert.ok(!queries.open.includes('draft:false'), 'includeDrafts omits draft:false');
 }
 
-// --- a closed range uses merged:start..end ---
+// --- a closed range is swept one week per merged search, the last week cut at the end ---
 {
-  const { queries } = await runSweep(makeConfig(), { start: '2026-08-01', end: '2026-09-01' });
-  assert.match(queries.merged, /merged:2026-08-01\.\.2026-09-01/);
+  const { result, queries } = await runSweep(makeConfig(), { start: '2026-08-01', end: '2026-09-01' });
+  assert.deepEqual(
+    queries.merged.map((q) => q.match(/merged:(\S+)/)[1]).sort(),
+    [
+      '2026-08-01..2026-08-07',
+      '2026-08-08..2026-08-14',
+      '2026-08-15..2026-08-21',
+      '2026-08-22..2026-08-28',
+      '2026-08-29..2026-09-01',
+    ],
+  );
+  assert.equal(result.merged.length, 1, 'the same PR from every window is kept once');
 }
 
 // --- no authors → no OR clause ---
@@ -217,7 +229,7 @@ await assert.rejects(
   assert.equal(calls, 4, 'initial call + 3 retries');
 }
 
-// --- a window over the 1000-result cap splits by date and dedupes ---
+// --- a week over the 1000-result cap splits by date; other weeks are kept ---
 {
   const merged = [];
   globalThis.fetch = async (_url, opts) => {
@@ -227,21 +239,41 @@ await assert.rejects(
     if (q.includes('review-requested')) return json(page([]));
     if (q.includes('is:merged')) {
       merged.push(q);
-      if (q.includes('merged:2026-08-01..2026-08-31')) return json(page([node(100, null)], 1500));
-      if (q.includes('merged:2026-08-01..2026-08-16')) return json(page([node(101, null)], 800));
-      if (q.includes('merged:2026-08-17..2026-08-31')) return json(page([node(102, null)], 700));
-      assert.fail(`unexpected merged window: ${q}`);
+      if (q.includes('merged:2026-08-01..2026-08-07')) return json(page([node(100, null)], 1500));
+      if (q.includes('merged:2026-08-01..2026-08-04')) return json(page([node(101, null)], 800));
+      if (q.includes('merged:2026-08-05..2026-08-07')) return json(page([node(102, null)], 700));
+      // Every other week: one PR numbered after its first day.
+      return json(page([node(200 + Number(q.match(/merged:\d{4}-\d{2}-(\d{2})/)[1]), null)]));
     }
     return json(page([node(1, 'APPROVED')]));
   };
   const svc = new GithubService(() => 'tok');
   const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: '2026-08-31' });
-  assert.equal(merged.length, 3, 'full window + two halves');
+  assert.equal(merged.length, 7, 'five weeks + two halves of the capped one');
   assert.deepEqual(
-    result.merged.map((r) => r.number).sort(),
-    [101, 102],
-    'capped window replaced by its halves',
+    result.merged.map((r) => r.number).sort((a, b) => a - b),
+    [101, 102, 208, 215, 222, 229],
+    'capped week replaced by its halves, other weeks kept',
   );
+}
+
+// --- merged weeks run in parallel, at most 4 at a time ---
+{
+  let inFlight = 0;
+  let peak = 0;
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:merged')) return json(page([]));
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    await new Promise((r) => setTimeout(r, 5));
+    inFlight--;
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok');
+  await svc.sweep(makeConfig(), { start: '2026-06-01', end: '2026-08-31' });
+  assert.equal(peak, 4, 'thirteen weeks, four in flight');
 }
 
 // --- incremental patch: a changed PR moves buckets, untouched rows survive ---
