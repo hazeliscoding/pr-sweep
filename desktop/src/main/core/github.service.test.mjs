@@ -561,6 +561,36 @@ await assert.rejects(
   assert.deepEqual(sizes, [100, 50, 25, 25, 25, 25], 'halve twice, then the usual 3 retries');
 }
 
+// --- a search page that arrives as a cut-off 200 body is re-sent smaller ---
+{
+  const sizes = [];
+  const truncated = { ok: true, status: 200, headers: headers(), json: async () => JSON.parse('{"data":') };
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested')) return json(page([]));
+    sizes.push(body.variables.first);
+    return body.variables.first === 100 ? truncated : json(page([node(1, 'APPROVED')]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(sizes, [100, 50], 'treated like a timeout');
+  assert.equal(result.open.length, 1);
+}
+
+// --- any other request with a cut-off body is retried like a 5xx ---
+{
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls === 1) return { ok: true, status: 200, headers: headers(), json: async () => JSON.parse('{"data":') };
+    return json({ viewer: { login: 'me' } });
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  assert.equal(await svc.viewer(), 'me');
+  assert.equal(calls, 2, 'retried once');
+}
+
 // --- results carry the snapshot schema ---
 {
   const { result } = await runSweep(makeConfig(), { start: '2026-08-01', end: null });

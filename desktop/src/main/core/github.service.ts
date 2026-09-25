@@ -18,9 +18,9 @@
  *    so a busy quarter still sweeps completely instead of silently truncating.
  *  - the full sweep's merged list runs one week per search, a few in flight,
  *    instead of paging through the whole range one request at a time.
- *  - a search page that times out (502/504) is re-sent at half the size, down
- *    to 25, before the usual retries — whole-org searches on big orgs time out
- *    at 100 every time.
+ *  - a search page that times out (502/504, or a 200 with a cut-off body) is
+ *    re-sent at half the size, down to 25, before the usual retries —
+ *    whole-org searches on big orgs time out at 100 every time.
  *  - rate limits (primary and secondary) and transient 5xx are retried with the
  *    server-stated wait when GitHub provides one, exponential backoff otherwise.
  *  - auto-refreshes can run incrementally against the previous sweep: one cheap
@@ -419,7 +419,9 @@ export class GithubService {
     }
     if (res.status === 401) throw new Error('GitHub rejected the token (401). Replace it in Settings.');
     if (!res.ok) {
-      if (shrinkable && (res.status === 502 || res.status === 504)) throw new GithubTimeout(res.status);
+      if (shrinkable && (res.status === 502 || res.status === 504)) {
+        throw new GithubTimeout(`GitHub API error: HTTP ${res.status}`);
+      }
       // 403/429 are the primary/secondary rate limits; 5xx is GitHub having a
       // moment (big GraphQL queries 502 more than they should). Honor the
       // server-stated wait when there is one, back off exponentially otherwise.
@@ -429,7 +431,18 @@ export class GithubService {
       }
       throw new Error(`GitHub API error: HTTP ${res.status}`);
     }
-    const body = (await res.json()) as { data?: T; errors?: Array<{ message: string; type?: string }> };
+    let body: { data?: T; errors?: Array<{ message: string; type?: string }> };
+    try {
+      body = (await res.json()) as typeof body;
+    } catch {
+      // Queries GitHub gives up on can also arrive as a 200 with a cut-off body.
+      if (shrinkable) throw new GithubTimeout('GitHub API returned a truncated response.');
+      if (attempt < MAX_RETRIES) {
+        await sleep(this.backoff(attempt));
+        return this.graphql(query, variables, attempt + 1, shrinkable);
+      }
+      throw new Error('GitHub API returned a truncated response.');
+    }
     if (process.env.PRSWEEP_DEBUG) {
       console.log('[github] vars:', JSON.stringify(variables).slice(0, 300));
       console.log('[github] scopes:', res.headers.get('x-oauth-scopes'), '| sso:', res.headers.get('x-github-sso'), '| token:', (token ?? '').slice(0, 12) + '…' + (token ?? '').length);
@@ -466,11 +479,7 @@ export class GithubService {
 }
 
 /** GitHub couldn't answer a search page in time; the page should be re-sent smaller. */
-class GithubTimeout extends Error {
-  constructor(status: number) {
-    super(`GitHub API error: HTTP ${status}`);
-  }
-}
+class GithubTimeout extends Error {}
 
 function bucketOf(n: SearchNode): ReviewBucket {
   switch (n.reviewDecision) {
