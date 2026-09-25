@@ -41,6 +41,50 @@ what to do next.
   lockup layout of logo design 1b. Design 1b's own mark was considered and dropped. The assets are
   in `docs/brand/`, with `-dark` files for dark backgrounds.
 
+## v0.11 decisions (2026-09-25)
+
+- **The board shows all of the team's open PRs**, not only the ones updated in the range, so PRs
+  carried over from an earlier sprint appear. Merged stays "merged in range".
+- **The Sweep covers team PRs only.** Your review queue keeps its own section.
+- **The engine runs in main after every sweep, over every row.** Incremental refreshes keep
+  untouched rows cached for days, so reasons saved once on a row would freeze.
+- **Cost was measured before choosing.** A read-only probe ran the v0.10.4 queries and each new
+  field against the electron org (30-day range, median of 5 runs, with the app's retry policy):
+
+| Query | Team profile (5 authors) |
+|---|---|
+| Open, v0.10.4 | 3.9 s, 29 rows |
+| Open + free fields (`id`, request count, team slugs, commit date) | 4.1 s |
+| Open + `latestReviews` | 4.0 s |
+| Open + `mergeable` | 4.7 s (+21%) |
+| Carried over (open, updated before the range) | 1.9 s, 6 rows |
+| Detail query, approved + changes-requested rows | 0.6 s, 13 rows |
+| Merged, v0.10.4 | 51 s, 357 rows in 4 sequential pages |
+| Queue, v0.10.4 | 0.7 s |
+
+  Runs of the same query varied by about ±20%, so small differences are noise. For the whole org
+  with no authors set, every open query failed with 502 on every attempt, including v0.10.4's.
+- **Expensive fields go in a detail query.** `mergeable` and `latestReviews` are fetched with
+  `nodes(ids:)` only for approved, changes-requested and unrequested needs-review rows. It runs
+  while the much slower merged search is still in flight, so it adds no wall time.
+- **v0.11 also fixes two performance problems from v0.10.4:** the merged search fetches its pages
+  one at a time, and whole-org views of big orgs fail with 502.
+- **Budget:** the full sweep on the electron team profile is no slower than v0.10.4, auto-refresh
+  time is unchanged, and the electron whole-org view completes.
+- **`NEEDS_RE_REVIEW` is a reason of its own.** "Changes requested" has two next steps: the
+  author's (address the feedback) and the reviewer's (re-review after the push).
+- **Sprint-end risk is a header line, not a row reason.** As a reason it would flag nearly every
+  unapproved PR in the last two days, when the list should be shortest.
+- **Drafts only get `DRAFT_TOO_LONG`.** There are no new settings: fixed thresholds are
+  constants, and the slow ones use the profile's `staleDays`.
+- **Snooze** hides a row until the PR updates, gains a more severe reason, or the next day comes.
+  It's stored per machine in `localStorage` and never exported. It has no unit test, because the
+  renderer has no test harness; it's checked by hand.
+- **The tray badge keeps counting your review queue.** The menu gains a team attention line.
+  There are no new notifications.
+- **Each roadmap release is built on its own branch** (`release/vX.Y`) and reaches `main`
+  through a pull request.
+
 ## Shipped
 
 Ordering then: distribution first, because every later release gets cheaper once CI ships
@@ -110,40 +154,60 @@ Theme: the board tells you what actually needs *action*, not just what exists.
 
 ## v0.11: Sweep
 
-Theme: every PR that needs a human shows up once, with the reason and the next step.
+Theme: every PR that needs a human shows up once, with the reason and the next step. Built on
+the `release/v0.11` branch.
 
-- [ ] Snapshot schema version. A sweep never patches a cached snapshot written by an older
-      schema. Today the boot refresh patches the cache incrementally, so PRs nobody touched
-      would never get new row fields after an update.
-- [ ] The open-PR query gains `mergeable`, the last commit's date, and the latest reviews
-      (state and time). Measure sweep time on a large org before and after, because v0.10.2
-      trimmed fields for a reason.
-- [ ] Attention engine: a pure function in `desktop/src/main/core/` with a unit test per
-      reason. Each reason carries how long it has held and a next action (Review, Merge,
-      Fix CI, Rebase, Nudge).
+- [ ] Sweep timing line under `PRSWEEP_DEBUG`: full or auto, duration, searches and retries.
+      Record the v0.10.4 baseline with it on the electron team and whole-org profiles, 5 full and
+      5 auto refreshes each, taking the median.
+- [ ] Snapshot schema version (`schema: 2`). `SnapshotStore.get` returns null for an older
+      schema and a sweep never patches one, so the first refresh after an update is a full one.
+- [ ] Merged search in weekly windows, fetched in parallel with at most 4 in flight. Each window
+      still splits itself past 1000 results.
+- [ ] Page-size fallback: a page that still fails with 502 or 504 after the normal retries is
+      retried at 50, then 25, before the sweep reports an error.
+- [ ] Data, then measure against the budget:
+  - the open search gains `id`, `reviewRequests.totalCount`, team slugs and the last commit's
+    `committedDate`. Review requests to teams now count, and the "Awaiting" column shows them.
+  - a carried-over search (`updated:<rangeStart`, same fields) runs in parallel with it.
+  - a detail query (`nodes(ids:)`, up to 100 per call) fetches `mergeable` and `latestReviews`
+    for approved, changes-requested and unrequested needs-review rows. It starts as soon as both
+    open searches land.
+  - new `PrRow` fields: `mergeable`, `lastCommitAt`, `approvedAt`, `changesRequestedAt`,
+    `reviewCount`, `requestCount` and `attention`.
+- [ ] Attention engine: `desktop/src/main/core/attention.ts`, a pure function with a test for each
+      reason at its boundary. `prs:fetch` runs it over the open rows after every sweep, full or
+      incremental. It also returns `sprintRisk`. Editing `staleDays` triggers a refresh.
 
-| Reason | Fires when | Data |
-|---|---|---|
-| `CI_FAILING` | The latest commit's checks fail | Fetched today |
-| `MERGE_CONFLICT` | `mergeable` is `CONFLICTING` (`UNKNOWN` never fires) | New |
-| `APPROVED_NOT_MERGED` | Approved, CI passing or absent, for more than a day | New: approval time |
-| `CHANGES_NOT_ADDRESSED` | Changes requested and no commit since | New: last commit and review times |
-| `NO_REVIEWERS` | Not a draft, no reviews, no pending requests | New: latest reviews |
-| `WAITING_FOR_REVIEW` | Needs review past the stale threshold. Uses request time on queue rows, creation time elsewhere | Fetched today |
-| `STALE` | No update in `staleDays` | Fetched today |
-| `DRAFT_TOO_LONG` | A draft past the stale threshold, when drafts are shown | Fetched today |
-| `SPRINT_END_RISK` | Open, not approved, and the range ends within 2 days | Fetched today; needs an end date |
+| # | Reason | Fires when | `since` | Next step |
+|---|---|---|---|---|
+| 1 | `CI_FAILING` | CI is failing | last commit | Fix CI (`/checks`) |
+| 2 | `MERGE_CONFLICT` | details say `CONFLICTING` (`UNKNOWN` never fires) | none | Resolve conflict |
+| 3 | `CHANGES_NOT_ADDRESSED` | changes requested, no commit since, for more than a day | the review | Address feedback |
+| 4 | `NEEDS_RE_REVIEW` | changes requested, a commit since, no re-review for more than a day | the commit | Re-review (`/files`) |
+| 5 | `APPROVED_NOT_MERGED` | approved, CI passing or absent, no conflict, for more than a day | the approval | Merge |
+| 6 | `NO_REVIEWERS` | needs review, no requests to people or teams, no reviews, open more than an hour | opened | Request reviewers |
+| 7 | `WAITING_FOR_REVIEW` | needs review, has requests, open longer than `staleDays` | opened | Nudge reviewers |
+| 8 | `STALE` | no update in `staleDays` | last update | Nudge |
+| 9 | `DRAFT_TOO_LONG` | a draft older than `staleDays`, when drafts are shown | opened | Ready or close |
 
-- [ ] "Sweep" section at the top of the board. It lists only PRs with a reason, most severe
-      first, one line each with the reason, its age and a next-action link.
-- [ ] Decide: a local "snooze until this PR changes" per row. *Recommended: yes, because
-      without it the list becomes a static nag.*
-- [ ] Decide: whether the tray badge counts Sweep items or keeps counting your review queue.
-      *Recommended: keep the queue, because Sweep items are team-wide.*
+  Drafts only ever get reason 9, and `staleDays = 0` turns off reasons 7–9. The list is ordered
+  by most severe reason, then longest-standing first.
+
+- [ ] Sweep section at the top of the board: PR, CI, title (a link), why (the most severe reason
+      and its age, plus chips for the others), author, next step and snooze. Rows aren't clickable
+      as a whole. Author chips and the text filter apply. When the range ends within 2 days, the
+      header says how many open PRs aren't approved yet. Empty state: "Nothing needs attention."
+- [ ] Snooze per row, plus "Show snoozed" to reveal and unsnooze.
+- [ ] Tray: a "N need attention (team)" menu line and tooltip fallback, with `attentionCount`
+      added to `syncTray`. Settings: the stale-threshold help text mentions the Sweep.
+- [ ] `chore(release): v0.11.0`, then a pull request to `main`. Once it ships, update an installed
+      v0.10.4 through the auto-updater and check that the first refresh fills every row without a
+      manual Refresh.
 
 **Done when:** opening the app shows a short list where every row says why it's there and what
-to do, a PR leaves the list on its own once it's fixed, and the first refresh after updating
-from v0.10.x fills in every row.
+to do, a PR leaves the list on its own once it's fixed, the first refresh after updating from
+v0.10.x fills in every row, and the budget holds with the numbers recorded here.
 
 ## v0.12: Sprint summary
 
