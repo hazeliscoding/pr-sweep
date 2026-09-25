@@ -20,9 +20,7 @@
  *    instead of paging through the whole range one request at a time.
  *  - a search page that times out (502/504, or a 200 with a cut-off body) is
  *    re-sent at half the size, down to 25, before the usual retries —
- *    whole-org searches on big orgs time out at 100 every time. Later searches
- *    of the same kind start at the smaller size for an hour, so the timeouts
- *    (and the secondary rate limits they trigger) aren't paid again and again.
+ *    whole-org searches on big orgs time out at 100 every time.
  *  - rate limits (primary and secondary) and transient 5xx are retried with the
  *    server-stated wait when GitHub provides one, exponential backoff otherwise.
  *  - auto-refreshes can run incrementally against the previous sweep: one cheap
@@ -42,12 +40,6 @@ const PAGE_SIZE = 100;
  * and repeating the same request only adds the backoff.
  */
 const MIN_PAGE_SIZE = 25;
-/**
- * A shrunken page size is reused by later searches of the same kind for this
- * long, so a sweep doesn't pay the same timeouts search after search. It then
- * expires, and a one-off 502 can't keep a small profile's pages small.
- */
-const PAGE_SIZE_MEMORY_MS = 60 * 60_000;
 /** GitHub search returns at most this many results per query, full stop. */
 const SEARCH_CAP = 1000;
 /**
@@ -163,8 +155,8 @@ export interface SweepStats {
 export class GithubService {
   constructor(
     private readonly token: () => string | null,
-    /** retryBaseMs and now let tests shrink the backoff and move the clock. */
-    private readonly opts: { retryBaseMs?: number; now?: () => number } = {},
+    /** retryBaseMs shrinks the backoff for tests; production uses the default. */
+    private readonly opts: { retryBaseMs?: number } = {},
   ) {}
 
   /**
@@ -369,19 +361,16 @@ export class GithubService {
     const nodes: SearchNode[] = [];
     let after: string | null = null;
     let total = 0;
-    const kind = searchKind(q, doc);
-    let first = this.startingPageSize(kind);
+    let first = PAGE_SIZE;
     // Search stops at SEARCH_CAP results; the guard (smallest pages, plus the two
     // halvings) also keeps a backend pagination bug from spinning forever.
     for (let request = 0; request < SEARCH_CAP / MIN_PAGE_SIZE + 2 && nodes.length < SEARCH_CAP; request++) {
       let data: SearchPage;
       try {
-        first = Math.min(first, this.startingPageSize(kind));
         data = await this.graphql(doc, { q, after, first }, 0, first > MIN_PAGE_SIZE);
       } catch (e) {
         if (!(e instanceof GithubTimeout)) throw e;
         first = Math.max(MIN_PAGE_SIZE, first / 2);
-        this.rememberPageSize(kind, first);
         this.counters.retries++;
         continue;
       }
@@ -484,23 +473,6 @@ export class GithubService {
     return null;
   }
 
-  private pageSizes = new Map<string, { size: number; until: number }>();
-
-  private startingPageSize(kind: string): number {
-    const memory = this.pageSizes.get(kind);
-    return memory && memory.until > this.now() ? memory.size : PAGE_SIZE;
-  }
-
-  private rememberPageSize(kind: string, size: number): void {
-    if (size < this.startingPageSize(kind)) {
-      this.pageSizes.set(kind, { size, until: this.now() + PAGE_SIZE_MEMORY_MS });
-    }
-  }
-
-  private now(): number {
-    return (this.opts.now ?? Date.now)();
-  }
-
   /** Sleep before a retry; PRSWEEP_DEBUG says why and for how long. */
   private async pause(reason: string, ms: number): Promise<void> {
     if (process.env.PRSWEEP_DEBUG) console.log(`[github] retry after ${reason}, waiting ${(ms / 1000).toFixed(1)} s`);
@@ -570,14 +542,6 @@ function requestedAtFor(n: SearchNode, viewer: string): string | null {
     }
   }
   return null;
-}
-
-/**
- * Searches that differ only in their date window (merged weeks, the halves of a
- * capped window, an incremental delta) are the same kind for page sizing.
- */
-function searchKind(q: string, doc: string): string {
-  return `${doc}\n${q.replace(/\s(updated|merged|created):\S+/g, '')}`;
 }
 
 const nodeKey = (n: SearchNode): string => `${n.repository.name}#${n.number}`;
