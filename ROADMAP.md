@@ -73,7 +73,10 @@ what to do next.
   time is unchanged, and the electron whole-org view completes.
 - **Baseline** (v0.10.4, `e2e/bench-sweep.mjs`, electron, last 30 days, 5 runs): the team
   profile's full sweep takes 28.9 s median (25.1–38.3 s, 6–7 requests) and its auto-refresh 0.7 s
-  (1 request). The whole-org view failed with 502 in 5 of 5 runs, after 49–96 s.
+  (1 request). The whole-org view failed with 502 in 5 of 5 runs, after 49–96 s. Auto-refresh
+  time depends on org activity: when anything in the org changed since the last sweep, the
+  refresh runs three more searches (4 requests, about 2 s). Compare auto-refreshes with the same
+  request count.
 - **`NEEDS_RE_REVIEW` is a reason of its own.** "Changes requested" has two next steps: the
   author's (address the feedback) and the reviewer's (re-review after the push).
 - **Sprint-end risk is a header line, not a row reason.** As a reason it would flag nearly every
@@ -165,8 +168,9 @@ the `release/v0.11` branch.
       5 auto refreshes each, taking the median.
 - [x] Snapshot schema version (`schema: 2`). `SnapshotStore.get` returns null for an older
       schema and a sweep never patches one, so the first refresh after an update is a full one.
-- [ ] Merged search in weekly windows, fetched in parallel with at most 4 in flight. Each window
-      still splits itself past 1000 results.
+- [x] Merged search in weekly windows, fetched in parallel with at most 4 in flight. Each window
+      still splits itself past 1000 results. *Measured: the team profile's full sweep dropped to
+      10.8 s median (9.7–13.4 s, plus one 69.9 s run that hit a retry), from 28.9 s.*
 - [ ] Page-size fallback: a page that still fails with 502 or 504 after the normal retries is
       retried at 50, then 25, before the sweep reports an error.
 - [ ] Data, then measure against the budget:
