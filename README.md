@@ -1,155 +1,155 @@
-<p align="center"><img src="desktop/build/icon.svg" width="120" alt="PR Sweep logo"></p>
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/lockup-dark.svg">
+    <img alt="PR Sweep" src="docs/brand/lockup.svg" height="40">
+  </picture>
+</h1>
 
-<h1 align="center">PR Sweep</h1>
+**See where your team's pull requests are stuck this sprint.** One desktop window shows every PR
+your team has open across a GitHub organization, sorted by what it's waiting on.
 
-A portable desktop PR dashboard for teams that work in sprints across many repos in one
-GitHub organization. One window that answers: **what's open, what needs review, what has
-changes requested, what's approved, and what merged — this sprint.**
+In 2022, Meta [studied its code review times](https://engineering.fb.com/2022/11/16/culture/meta-code-review-time-improving/).
+The longer an engineer's slowest reviews took, the less satisfied they were with code review.
+Meta built Nudgebot, which pings the reviewers most likely to act on a diff that has waited too
+long. The share of diffs waiting more than three days for review dropped 12 percent.
 
-![board — light theme](docs/screenshots/board.png)
-![board — dark theme](docs/screenshots/board-dark.png)
+Most teams don't have a Nudgebot. Their stuck PRs are spread across a dozen repos, and GitHub's
+own dashboard shows what's waiting on *you*, not on the team. PR Sweep puts the whole team's PRs
+on one board, sorted by GitHub's own review state, so nobody maintains labels or a project board.
+Set the org, the team and the sprint's dates once. It refreshes every five minutes from the tray.
 
-## ✨ Features
+> **Status:** v0.10, in daily use. Windows and Linux builds are on [Releases](../../releases) and
+> update themselves. Next is a Sweep list that says why each stuck PR needs attention and what to
+> do about it. See [ROADMAP.md](ROADMAP.md).
 
-- 📋 **Status board** — dense tables for Needs review · Changes requested · Approved · Merged,
-  bucketed from GitHub's actual `reviewDecision`. No labels, no manual bookkeeping.
-- 🙋 **My queue** — a section for open PRs anywhere in the org with *your* review requested,
-  so nothing waiting on you slips through — each row shows how long it's been waiting on you,
-  flagged when it passes the stale threshold.
-- 🚦 **CI status** — every open PR shows its latest commit's check rollup as a
-  green/red/amber dot, so "approved" and "actually ready to merge" stop being confused.
-- ⏳ **Stale flags** — open PRs untouched past a configurable threshold are highlighted; toggle
-  draft PRs on or off.
-- 📅 **Date-range scoped** — pick From/To dates in the header and they persist; leave "To" empty
-  for an open-ended view. Set the range at sprint start and forget about it.
-- 👥 **Team-scoped** — aggregate PRs authored by a configurable list of GitHub logins
-  (leave the list empty to see the whole org), with per-author filter chips and free-text search.
-- 🗂️ **Profiles** — save multiple org/team/date-range views and switch between them from the
-  header. **Export/import** profiles as a JSON file so one person configures the team's view
-  and everyone else imports it (tokens are never included).
-- ⚡ **Instant boot** — the last sweep is cached to disk and shown immediately on launch,
-  then refreshed quietly in the background.
-- 🔗 **Click a row** → PR opens in your browser.
-- 🔔 **Tray + notifications** — lives in the system tray with live counts and desktop toasts
-  for both directions of the loop: a PR lands in your review queue, or one of *your* PRs gets
-  approved, gets changes requested, or starts failing CI (click a toast to open the PR).
-  Closing the window keeps it running in the tray so it keeps watching.
-- 🔄 Auto-refresh (default every 5 min), manual Refresh button.
-- ⬆️ **Self-updating** — installed builds check for new releases on launch and every
-  6 hours (so close-to-tray copies stay current too), download in the background with
-  progress in the header pill and taskbar, and apply only when you click **Restart**
-  (header pill or tray menu) or next quit.
-- 🌗 Light/dark theme toggle; follows the OS on first run, choice persists per machine.
-- 🔑 **Sign in with GitHub** (device flow) — no token to copy-paste; personal-access-token
-  sign-in stays as a fallback.
-- 🔐 Credentials stored encrypted at rest (Windows DPAPI via Electron safeStorage) — they never
-  leave the machine.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/board-dark.png">
+  <img alt="The board for the electron org: counts for My queue, Needs review, Changes requested, Approved and Merged in range, author filter chips, then one table per section with each PR's title, author, comments, size, pending reviewers and last update" src="docs/screenshots/board.png">
+</picture>
 
-## 🚀 Getting started
+## Install
 
-Grab a build from [Releases](../../releases):
+Grab a build from [Releases](../../releases).
 
-- **Windows** — the **setup exe** installs PR Sweep (Start Menu entry, self-updating on new
-  releases); the **portable exe** just runs with no install (but doesn't self-update).
-- **Linux** — the **AppImage** runs on any distro (`chmod +x pr-sweep-*.AppImage`, then run
-  it) and self-updates on new releases. Your token is encrypted via the system keyring
-  (GNOME Keyring / KWallet via libsecret) when one is available; without one it falls back
-  to base64 obfuscation — prefer a keyring on shared machines.
-- **macOS** — not yet; see the [roadmap](ROADMAP.md).
+- **Windows:** the setup exe installs PR Sweep with a Start Menu entry and keeps it updated. The
+  portable exe runs without installing, but doesn't update itself. Builds are signed with Azure
+  Trusted Signing. If SmartScreen still warns while the certificate builds reputation, choose
+  *More info → Run anyway*.
+- **Linux:** the AppImage runs on any distro (`chmod +x pr-sweep-*.AppImage`, then run it) and
+  updates itself. Your token is encrypted with the system keyring (GNOME Keyring or KWallet,
+  through libsecret). Without a keyring it falls back to base64, which only obscures the token,
+  so use a keyring on shared machines.
+- **macOS:** not planned for now. See [ROADMAP.md](ROADMAP.md).
 
-Or build it yourself (below).
+## First launch
 
-> **SmartScreen note:** builds are code-signed (Azure Trusted Signing) as of v0.9. If
-> SmartScreen still warns while the certificate builds reputation, click *More info → Run
-> anyway*. Builds you compile yourself are unsigned unless you configure your own signing.
+1. Enter your GitHub organization.
+2. Connect GitHub:
+   - **Sign in with GitHub** (recommended). Enter a short code at `github.com/login/device`.
+     There's no token to manage.
+   - **Personal access token.** Use a classic token with `repo` and `read:org`. If your org uses
+     SAML SSO, choose **Configure SSO** on the token and authorize the org. An unauthorized token
+     gets empty results instead of errors, so PR Sweep checks for this and tells you.
+3. In Settings, add your team's GitHub logins. Leave the list empty to see the whole org.
+4. Set the sprint's From and To dates in the header. Leave To empty for an open-ended view.
 
-First launch asks for your GitHub organization, then offers two ways to connect:
+> **Private orgs:** the first time someone signs in to an org that restricts third-party OAuth
+> apps, GitHub asks them to **request access to `<org>`**. An org owner approves the app once,
+> under **Settings → Third-party access → OAuth app access policy**, and everyone can sign in from
+> then on. Until then the board stays empty even though sign-in worked.
 
-- **Sign in with GitHub** (recommended) — enter a short code at `github.com/login/device`;
-  no token to manage.
-- **Personal access token** — a classic token with `repo` + `read:org` scopes. If your org
-  uses SAML SSO, **Configure SSO** on the token and authorize the org (an unauthorized token
-  gets no API errors, just silently empty results — PR Sweep detects and explains this rather
-  than showing an empty board).
+## What it does
 
-Then add your team's GitHub logins in Settings and set the date range in the header.
+- **Sorts** every PR your team has open or merged in the date range into Needs review, Changes
+  requested, Approved and Merged, from GitHub's `reviewDecision`. There are no labels to keep up.
+- **Queues** the open PRs anywhere in the org that are waiting on *your* review, with how long
+  each has waited.
+- **Flags** failing CI on every open PR, and PRs untouched for longer than a threshold you set.
+  Drafts stay hidden unless you show them.
+- **Notifies** from the tray when a PR lands in your queue, or when one of yours is approved, gets
+  changes requested or starts failing CI. Closing the window keeps it watching.
+- **Shares** a setup. Save org, team and date-range profiles, then export them as JSON for
+  teammates to import. Tokens are never exported.
+- **Opens instantly.** The last sweep is cached on disk, so the board appears at once and
+  refreshes in the background.
+- **Updates itself.** Installed builds check on launch and every 6 hours, download in the
+  background, and apply the update when you click Restart.
 
-> **Private orgs & "Sign in with GitHub":** the first time someone signs in for a private
-> org that restricts third-party OAuth apps, GitHub shows a **"request access to `<org>`"**
-> prompt after they authorize — this is expected, not an error. An **org owner approves the
-> app once** (org **Settings → Third-party access → OAuth app access policy**), and from then
-> on every teammate can sign in normally. Until it's approved, the board will look empty even
-> though sign-in "succeeded"; that's the pending approval, not a bug. Public orgs need no
-> approval.
+## Your token stays with you
 
-### Self-hosting the OAuth sign-in
+- **Read-only.** PR Sweep only reads from GitHub. It never comments, labels, approves or merges.
+- **Encrypted at rest** through Electron's `safeStorage`: Windows DPAPI, or the keyring on Linux.
+- **Only GitHub.** It talks to the GitHub API, to github.com for sign-in, and to GitHub Releases
+  for updates. There's no telemetry and no PR Sweep server.
+- **Open source**, so you can check all of this.
 
-"Sign in with GitHub" needs a registered OAuth App's client ID. The public builds ship one; if
-you fork this, register your own (GitHub → Developer settings → **New OAuth App**, then enable
-**Device Flow**) and either set `DEFAULT_OAUTH_CLIENT_ID` in
-`desktop/src/main/core/oauth.constants.ts` before building, or paste it into **Settings → OAuth
-App client ID** at runtime. The client ID is public by design (device flow has no secret).
+## Prior art
 
-## 🛠️ Development
+PR Sweep is narrow on purpose. If you want something else, these are good:
 
-```
+- [GitHub's pull requests dashboard](https://github.blog/changelog/2026-07-09-new-pull-requests-dashboard-is-now-generally-available/)
+  is the place for what's waiting on *you*: review requests, failing CI and PRs ready to merge,
+  with saved views.
+- [Scheduled reminders](https://docs.github.com/en/organizations/organizing-members-into-teams/managing-scheduled-reminders-for-your-team)
+  post a team's pending reviews to Slack on a schedule.
+- [gh-dash](https://github.com/dlvhdr/gh-dash) is a configurable terminal dashboard for PRs and
+  issues.
+- [PR Radar](https://github.com/deployhq/pr-radar) is a browser extension that tracks your PRs
+  across GitHub, GitLab and Bitbucket.
+- [prdash](https://github.com/noamsto/prdash) is a terminal board of one repo's open PRs, with the
+  next action for each.
+
+PR Sweep covers one org, one team and one date range, on a board the whole team reads the same way.
+
+## Under the hood
+
+GitHub search has quirks, all checked against the live API. PR Sweep works around them:
+
+- Several bare `author:` qualifiers AND together and match nothing. OR needs the advanced search
+  backend (`type: ISSUE_ADVANCED`) and parentheses: `(author:a OR author:b)`.
+- A null `reviewDecision` (a repo without required reviews) still means nobody approved, so it
+  counts as needs review.
+- A token that isn't SSO-authorized for an org gets no search errors, only filtered results. The
+  reliable check is whether the org's repositories are visible at all.
+- Search returns at most 1000 results per query, however you paginate. When a busy range would
+  pass that, PR Sweep splits the date window in half and searches the halves.
+- Auto-refreshes ask only for PRs updated since the last sweep and patch the cached result. A
+  manual Refresh always sweeps in full.
+
+## Development
+
+```sh
 npm install          # root orchestration deps
 npm run setup        # desktop + renderer deps
 npm run dev          # Angular dev server (:4301) + Electron with live reload
+npm run build        # renderer AOT build + main-process tsc (the typecheck)
+npm test             # core service tests (build first)
 ```
 
-## 📦 Packaging
-
-```
-npm run package:win    # builds renderer + main, emits desktop/release/pr-sweep-*-setup.exe + portable exe
-npm run package:linux  # same, emits desktop/release/pr-sweep-*.AppImage (build on Linux)
+```sh
+npm run package:win    # desktop/release/pr-sweep-*-setup.exe + portable exe
+npm run package:linux  # desktop/release/pr-sweep-*.AppImage (build on Linux)
 ```
 
-Release builds are signed via **Azure Trusted Signing** (`desktop/package.json` →
-`build.win.azureSignOptions`; account `ezmoney-signing`, profile `EZMoneyCert` — shared
-with ez-money). CI authenticates with a service principal through the `AZURE_TENANT_ID`,
-`AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` repo secrets; local packaging skips signing
-unless those env vars are set.
+Pushing a `v*` tag builds and publishes a release. Release builds are signed in CI with Azure
+Trusted Signing (`build.win.azureSignOptions` in `desktop/package.json`), authenticated by the
+`AZURE_TENANT_ID`, `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` repo secrets. Local packages are
+unsigned unless those variables are set.
 
-## 🏗️ Architecture
+### Your own OAuth app
 
-```
-desktop/
-  src/main/           Electron main: window + IPC registration
-    core/             plain services (no Electron imports where possible)
-      config.service  org/authors/range/refresh persisted to userData/config.json
-      token.store     PAT encrypted at rest via safeStorage (userData/token.bin)
-      snapshot.store  last sweep cached to userData/snapshot.json for instant boot
-      github.service  GraphQL search (ISSUE_ADVANCED backend), reviewDecision bucketing,
-                      rate-limit backoff, cap-splitting windowed pagination, incremental refresh
-  src/preload/        typed window.api bridge (contextIsolation on)
-  src/shared/types.ts the whole main<->renderer contract
-  renderer/           Angular app: BoardStore (signals) + board/settings pages
-  e2e/screenshot.mjs  playwright-core drive script for visual checks
-```
+"Sign in with GitHub" needs a registered OAuth app's client ID. Public builds ship one. In a fork,
+register your own (GitHub → Developer settings → **New OAuth App**, then enable **Device Flow**)
+and either set `DEFAULT_OAUTH_CLIENT_ID` in `desktop/src/main/core/oauth.constants.ts` before
+building, or paste it into **Settings → OAuth App client ID**. The client ID is public by design,
+since device flow has no secret.
 
-GitHub search quirks this encodes (verified against the live API):
+## Contributing
 
-- Multiple bare `author:` qualifiers AND together and match nothing; OR needs the
-  advanced search backend (`type: ISSUE_ADVANCED` in GraphQL) and parentheses:
-  `(author:a OR author:b)`.
-- The advanced backend spells `review:changes_requested` with an underscore
-  (legacy search uses a hyphen). PR Sweep buckets from `reviewDecision` instead.
-- A null `reviewDecision` (repo without required-review branch protection) still
-  means nobody approved — it buckets as *needs review*.
-- A token that isn't SSO-authorized for an org gets no search errors — results are
-  just silently filtered. The only reliable probe is whether the org's repositories
-  are visible at all.
-- Search hard-caps every query at 1000 results no matter how you paginate. When a
-  busy range would blow past it, PR Sweep splits the date window in half and queries
-  the halves recursively. Auto-refreshes skip most of this entirely: they ask only
-  for PRs updated since the previous sweep and patch the cached result (a manual
-  Refresh always resweeps in full).
+Issues and pull requests are welcome. The next unchecked item in [ROADMAP.md](ROADMAP.md) is
+what's being built, and [AGENTS.md](AGENTS.md) lists the rules the code follows, including which
+GitHub fields are expensive to fetch.
 
-## 🗺️ Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for the path to 1.0.
-
-## 📄 License
+## License
 
 [MIT](LICENSE)
