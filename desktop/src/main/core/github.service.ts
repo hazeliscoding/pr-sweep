@@ -18,6 +18,9 @@
  *    so a busy quarter still sweeps completely instead of silently truncating.
  *  - the full sweep's merged list runs one week per search, a few in flight,
  *    instead of paging through the whole range one request at a time.
+ *  - a search page that times out (502/504) is re-sent at half the size, down
+ *    to 25, before the usual retries — whole-org searches on big orgs time out
+ *    at 100 every time.
  *  - rate limits (primary and secondary) and transient 5xx are retried with the
  *    server-stated wait when GitHub provides one, exponential backoff otherwise.
  *  - auto-refreshes can run incrementally against the previous sweep: one cheap
@@ -31,6 +34,12 @@ const GRAPHQL_URL = 'https://api.github.com/graphql';
 // GraphQL search's max page size — fewer round trips is the single biggest
 // lever on sweep latency for busy ranges.
 const PAGE_SIZE = 100;
+/**
+ * A search page GitHub can't answer in time (502/504) is re-sent at half the
+ * size, down to this. Whole-org searches on big orgs time out at 100 every time,
+ * and repeating the same request only adds the backoff.
+ */
+const MIN_PAGE_SIZE = 25;
 /** GitHub search returns at most this many results per query, full stop. */
 const SEARCH_CAP = 1000;
 /**
@@ -81,8 +90,8 @@ const TIMELINE_FIELD = `
 
 function buildSearchQuery(extras: { ci?: boolean; timeline?: boolean }): string {
   return `
-  query ($q: String!, $after: String) {
-    search(query: $q, type: ISSUE_ADVANCED, first: ${PAGE_SIZE}, after: $after) {
+  query ($q: String!, $after: String, $first: Int!) {
+    search(query: $q, type: ISSUE_ADVANCED, first: $first, after: $after) {
       issueCount
       pageInfo { hasNextPage endCursor }
       nodes {
@@ -352,10 +361,19 @@ export class GithubService {
     const nodes: SearchNode[] = [];
     let after: string | null = null;
     let total = 0;
-    // The search cap is SEARCH_CAP results = SEARCH_CAP / PAGE_SIZE pages; the
-    // guard also keeps a backend pagination bug from spinning forever.
-    for (let page = 0; page < SEARCH_CAP / PAGE_SIZE; page++) {
-      const data: SearchPage = await this.graphql(doc, { q, after });
+    let first = PAGE_SIZE;
+    // Search stops at SEARCH_CAP results; the guard (smallest pages, plus the two
+    // halvings) also keeps a backend pagination bug from spinning forever.
+    for (let request = 0; request < SEARCH_CAP / MIN_PAGE_SIZE + 2 && nodes.length < SEARCH_CAP; request++) {
+      let data: SearchPage;
+      try {
+        data = await this.graphql(doc, { q, after, first }, 0, first > MIN_PAGE_SIZE);
+      } catch (e) {
+        if (!(e instanceof GithubTimeout)) throw e;
+        first = Math.max(MIN_PAGE_SIZE, first / 2);
+        this.counters.retries++;
+        continue;
+      }
       total = data.search.issueCount ?? 0;
       // Non-PR results (the search type is issue-shaped) come back as empty
       // objects from the inline fragment — drop them.
@@ -366,7 +384,13 @@ export class GithubService {
     return { nodes, total };
   }
 
-  private async graphql<T>(query: string, variables: Record<string, unknown>, attempt = 0): Promise<T> {
+  /** `shrinkable`: a 502/504 throws GithubTimeout at once so the caller can ask for less. */
+  private async graphql<T>(
+    query: string,
+    variables: Record<string, unknown>,
+    attempt = 0,
+    shrinkable = false,
+  ): Promise<T> {
     const token = this.token();
     if (!token) throw new Error('No GitHub token configured.');
     this.counters.requests++;
@@ -391,16 +415,17 @@ export class GithubService {
       // Network blip — same treatment as a transient server error.
       if (attempt >= MAX_RETRIES) throw e;
       await sleep(this.backoff(attempt));
-      return this.graphql(query, variables, attempt + 1);
+      return this.graphql(query, variables, attempt + 1, shrinkable);
     }
     if (res.status === 401) throw new Error('GitHub rejected the token (401). Replace it in Settings.');
     if (!res.ok) {
+      if (shrinkable && (res.status === 502 || res.status === 504)) throw new GithubTimeout(res.status);
       // 403/429 are the primary/secondary rate limits; 5xx is GitHub having a
       // moment (big GraphQL queries 502 more than they should). Honor the
       // server-stated wait when there is one, back off exponentially otherwise.
       if (attempt < MAX_RETRIES && [403, 429, 502, 503, 504].includes(res.status)) {
         await sleep(this.retryAfter(res) ?? this.backoff(attempt));
-        return this.graphql(query, variables, attempt + 1);
+        return this.graphql(query, variables, attempt + 1, shrinkable);
       }
       throw new Error(`GitHub API error: HTTP ${res.status}`);
     }
@@ -414,7 +439,7 @@ export class GithubService {
       // GraphQL rate limiting arrives as an HTTP 200 with a typed error.
       if (attempt < MAX_RETRIES && body.errors.some((e) => e.type === 'RATE_LIMITED')) {
         await sleep(this.retryAfter(res) ?? this.backoff(attempt));
-        return this.graphql(query, variables, attempt + 1);
+        return this.graphql(query, variables, attempt + 1, shrinkable);
       }
       throw new Error(`GitHub API error: ${body.errors[0].message}`);
     }
@@ -437,6 +462,13 @@ export class GithubService {
 
   private backoff(attempt: number): number {
     return (this.opts.retryBaseMs ?? 1000) * 2 ** attempt;
+  }
+}
+
+/** GitHub couldn't answer a search page in time; the page should be re-sent smaller. */
+class GithubTimeout extends Error {
+  constructor(status: number) {
+    super(`GitHub API error: HTTP ${status}`);
   }
 }
 

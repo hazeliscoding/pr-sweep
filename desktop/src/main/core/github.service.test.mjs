@@ -498,6 +498,69 @@ await assert.rejects(
   assert.ok(!docs.probe.includes('timelineItems'), 'changed probe stays bare');
 }
 
+// --- a search page that times out is re-sent at 50, then 25, not at the same size ---
+{
+  const sizes = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested')) return json(page([]));
+    sizes.push(body.variables.first);
+    if (body.variables.first === 100) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    if (body.variables.first === 50) return { ok: false, status: 504, headers: headers(), json: async () => ({}) };
+    return json(page([node(1, 'APPROVED')]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(sizes, [100, 50, 25], 'each timeout halves the page instead of repeating it');
+  assert.equal(result.open.length, 1, 'the smaller page still delivers the rows');
+  assert.equal(svc.lastSweep.retries, 2, 'both re-sends count as retries');
+}
+
+// --- once a search shrinks its pages, later pages stay small ---
+{
+  const calls = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested')) return json(page([]));
+    const { first, after } = body.variables;
+    calls.push({ first, after });
+    if (first === 100) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    const next = after === null;
+    return json({
+      search: {
+        issueCount: 2,
+        pageInfo: { hasNextPage: next, endCursor: next ? 'c1' : null },
+        nodes: [node(after === null ? 1 : 2, 'APPROVED')],
+      },
+    });
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(calls, [
+    { first: 100, after: null },
+    { first: 50, after: null },
+    { first: 50, after: 'c1' },
+  ]);
+  assert.deepEqual(result.open.map((r) => r.number), [1, 2]);
+}
+
+// --- at 25 the normal retries apply, then the sweep reports the error ---
+{
+  const sizes = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested')) return json(page([]));
+    sizes.push(body.variables.first);
+    return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  await assert.rejects(() => svc.sweep(makeConfig(), { start: '2026-08-01', end: null }), /HTTP 502/);
+  assert.deepEqual(sizes, [100, 50, 25, 25, 25, 25], 'halve twice, then the usual 3 retries');
+}
+
 // --- results carry the snapshot schema ---
 {
   const { result } = await runSweep(makeConfig(), { start: '2026-08-01', end: null });
