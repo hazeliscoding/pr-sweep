@@ -561,6 +561,62 @@ await assert.rejects(
   assert.deepEqual(sizes, [100, 50, 25, 25, 25, 25], 'halve twice, then the usual 3 retries');
 }
 
+// --- a shrunken page size carries over to the next sweep, per kind of search, for an hour ---
+{
+  let clock = Date.parse('2026-09-25T12:00:00Z');
+  const sizes = { open: [], queue: [] };
+  let timeouts = true;
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const { q, first } = body.variables;
+    if (q.includes('review-requested')) {
+      sizes.queue.push(first);
+      return json(page([]));
+    }
+    if (!q.includes('is:open')) return json(page([]));
+    sizes.open.push(first);
+    if (timeouts && first > 25) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1, now: () => clock });
+  const range = { start: '2026-08-01', end: null };
+  await svc.sweep(makeConfig(), range);
+  assert.deepEqual(sizes.open, [100, 50, 25]);
+
+  sizes.open = [];
+  sizes.queue = [];
+  clock += 30 * 60_000;
+  await svc.sweep(makeConfig(), range);
+  assert.deepEqual(sizes.open, [25], 'the next sweep starts where the last one ended up');
+  assert.deepEqual(sizes.queue, [100], 'other kinds of search keep the full size');
+
+  sizes.open = [];
+  timeouts = false;
+  clock += 61 * 60_000;
+  await svc.sweep(makeConfig(), range);
+  assert.deepEqual(sizes.open, [100], 'after an hour it tries the full size again');
+}
+
+// --- merged weeks queued behind the pool start at the size the first weeks found ---
+{
+  const mergedSizes = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const { q, first } = body.variables;
+    if (!q.includes('is:merged')) return json(page([]));
+    mergedSizes.push(first);
+    await new Promise((r) => setTimeout(r, 2));
+    if (first > 25) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  await svc.sweep(makeConfig(), { start: '2026-08-01', end: '2026-08-31' });
+  assert.equal(mergedSizes.filter((s) => s === 100).length, 4, 'only the first four weeks try 100');
+  assert.equal(mergedSizes.filter((s) => s === 25).length, 5, 'every week ends at 25');
+}
+
 // --- a search page that arrives as a cut-off 200 body is re-sent smaller ---
 {
   const sizes = [];
