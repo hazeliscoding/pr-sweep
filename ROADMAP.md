@@ -71,6 +71,9 @@ what to do next.
   one at a time, and whole-org views of big orgs fail with 502.
 - **Budget:** the full sweep on the electron team profile is no slower than v0.10.4, auto-refresh
   time is unchanged, and the electron whole-org view completes.
+- **Baseline** (v0.10.4, `e2e/bench-sweep.mjs`, electron, last 30 days, 5 runs): the team
+  profile's full sweep takes 28.9 s median (25.1–38.3 s, 6–7 requests) and its auto-refresh 0.7 s
+  (1 request). The whole-org view failed with 502 in 5 of 5 runs, after 49–96 s.
 - **`NEEDS_RE_REVIEW` is a reason of its own.** "Changes requested" has two next steps: the
   author's (address the feedback) and the reviewer's (re-review after the push).
 - **Sprint-end risk is a header line, not a row reason.** As a reason it would flag nearly every
@@ -157,7 +160,7 @@ Theme: the board tells you what actually needs *action*, not just what exists.
 Theme: every PR that needs a human shows up once, with the reason and the next step. Built on
 the `release/v0.11` branch.
 
-- [ ] Sweep timing line under `PRSWEEP_DEBUG`: full or auto, duration, searches and retries.
+- [x] Sweep timing line under `PRSWEEP_DEBUG`: full or auto, duration, searches and retries.
       Record the v0.10.4 baseline with it on the electron team and whole-org profiles, 5 full and
       5 auto refreshes each, taking the median.
 - [ ] Snapshot schema version (`schema: 2`). `SnapshotStore.get` returns null for an older
