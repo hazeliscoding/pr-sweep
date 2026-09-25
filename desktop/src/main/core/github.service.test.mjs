@@ -460,4 +460,68 @@ await assert.rejects(
   assert.ok(!docs.probe.includes('timelineItems'), 'changed probe stays bare');
 }
 
+// --- lastSweep records mode, duration, round trips and retries (the PRSWEEP_DEBUG line) ---
+{
+  let calls = 0;
+  let failedOnce = false;
+  globalThis.fetch = async (_url, opts) => {
+    calls++;
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!failedOnce) {
+      failedOnce = true;
+      return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    }
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  assert.strictEqual(svc.lastSweep, null, 'no stats before the first sweep');
+  await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  const s = svc.lastSweep;
+  assert.equal(s.mode, 'full');
+  assert.equal(s.ok, true);
+  assert.equal(s.requests, calls, 'every HTTP round trip counts, re-sends included');
+  assert.equal(s.retries, 1, 'the 502 re-send counts as a retry');
+  assert.ok(Number.isFinite(s.ms) && s.ms >= 0, 'duration in ms');
+}
+
+// --- an incremental patch reports its mode, and counters reset per sweep ---
+{
+  const range = { start: '2026-08-01', end: null };
+  const base = () => ({
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    org: 'acme',
+    range,
+    open: [row(1, 'needs-review')],
+    merged: [],
+    queue: [],
+  });
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok');
+  await svc.sweep(makeConfig(), range, base());
+  assert.equal(svc.lastSweep.mode, 'incremental');
+  assert.equal(svc.lastSweep.requests, 2, 'viewer lookup + one probe');
+  await svc.sweep(makeConfig(), range, base());
+  assert.equal(svc.lastSweep.requests, 1, 'counters reset per sweep (viewer is memoized)');
+  assert.equal(svc.lastSweep.retries, 0);
+}
+
+// --- a failed sweep still records its stats ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  await assert.rejects(() => svc.sweep(makeConfig(), { start: '2026-08-01', end: null }), /HTTP 502/);
+  assert.equal(svc.lastSweep.ok, false);
+  assert.equal(svc.lastSweep.mode, 'full');
+  assert.ok(svc.lastSweep.retries >= 3, 'the failing search exhausted its retries');
+}
+
 console.log('github.service: query construction, bucketing, retry, windowing, incremental + CI cases pass');

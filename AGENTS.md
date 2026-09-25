@@ -92,7 +92,12 @@ Run these from the repo root unless noted.
 - From `desktop/` after a build, `GH_TOKEN=$(gh auth token) node e2e/screenshot.mjs` writes
   screenshots to `desktop/e2e/shots/`. `PRSWEEP_DEMO=1` points it at a public org for README
   images.
-- `PRSWEEP_DEBUG=1` makes the main process log GraphQL variables and response bodies.
+- `PRSWEEP_DEBUG=1` makes the main process log GraphQL variables and response bodies, plus one
+  `[sweep]` line per sweep with its mode, duration, requests and retries.
+- From `desktop/` after `npm run build:main`,
+  `GH_TOKEN=$(gh auth token) node e2e/bench-sweep.mjs <org> [login,login,…] [runs]` times full
+  sweeps and auto-refreshes against the live API. The performance budget in `ROADMAP.md` is
+  measured with it.
 
 ## Releases
 

@@ -122,6 +122,16 @@ interface SearchPage {
   };
 }
 
+/** What the last sweep cost — logged under PRSWEEP_DEBUG and read by e2e/bench-sweep.mjs. */
+export interface SweepStats {
+  mode: 'full' | 'incremental';
+  ok: boolean;
+  ms: number;
+  /** HTTP round trips, re-sends included. */
+  requests: number;
+  retries: number;
+}
+
 export class GithubService {
   constructor(
     private readonly token: () => string | null,
@@ -166,6 +176,9 @@ export class GithubService {
     }
   }
 
+  lastSweep: SweepStats | null = null;
+  private counters = { mode: 'full' as SweepStats['mode'], requests: 0, retries: 0 };
+
   /**
    * Runs the sweep. When `base` (the previous sweep) is fresh and matches the
    * org + range, only PRs updated since it are fetched and patched in — for a
@@ -174,6 +187,19 @@ export class GithubService {
    * more changes than search can enumerate) falls back to a full sweep.
    */
   async sweep(config: SweepConfig, range: DateRange, base: SweepResult | null = null): Promise<SweepResult> {
+    const started = Date.now();
+    this.counters = { mode: 'full', requests: 0, retries: 0 };
+    let ok = false;
+    try {
+      const result = await this.sweepOnce(config, range, base);
+      ok = true;
+      return result;
+    } finally {
+      this.lastSweep = { ...this.counters, ok, ms: Date.now() - started };
+    }
+  }
+
+  private async sweepOnce(config: SweepConfig, range: DateRange, base: SweepResult | null): Promise<SweepResult> {
     const profile = activeProfile(config);
     if (!profile.org) throw new Error('No GitHub organization configured — set one in Settings.');
     const authors = profile.authors.length
@@ -191,7 +217,10 @@ export class GithubService {
 
     if (this.canPatch(base, profile.org, range)) {
       const patched = await this.incrementalSweep(base, parts, range, login);
-      if (patched) return patched;
+      if (patched) {
+        this.counters.mode = 'incremental';
+        return patched;
+      }
     }
 
     const today = new Date().toISOString().slice(0, 10);
@@ -327,6 +356,8 @@ export class GithubService {
   private async graphql<T>(query: string, variables: Record<string, unknown>, attempt = 0): Promise<T> {
     const token = this.token();
     if (!token) throw new Error('No GitHub token configured.');
+    this.counters.requests++;
+    if (attempt > 0) this.counters.retries++;
     let res: {
       ok: boolean;
       status: number;
