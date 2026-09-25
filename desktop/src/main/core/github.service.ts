@@ -22,7 +22,7 @@
  *    org-wide "what changed since last time" probe plus per-bucket deltas,
  *    instead of re-fetching every PR in the range (see sweep()'s `base` param).
  */
-import { DateRange, PrRow, ReviewBucket, SweepConfig, SweepResult } from '../../shared/types';
+import { DateRange, PrRow, ReviewBucket, SWEEP_SCHEMA, SweepConfig, SweepResult } from '../../shared/types';
 import { activeProfile } from './config.service';
 
 const GRAPHQL_URL = 'https://api.github.com/graphql';
@@ -231,6 +231,7 @@ export class GithubService {
       this.searchAll(parts.queue, QUERY_QUEUE).then((r) => r.nodes),
     ]);
     return {
+      schema: SWEEP_SCHEMA,
       fetchedAt: new Date().toISOString(),
       org: profile.org,
       range,
@@ -242,7 +243,7 @@ export class GithubService {
   }
 
   private canPatch(base: SweepResult | null, org: string, range: DateRange): base is SweepResult {
-    if (!base || base.org !== org) return false;
+    if (!base || base.schema !== SWEEP_SCHEMA || base.org !== org) return false;
     if (base.range.start !== range.start || (base.range.end ?? null) !== (range.end ?? null)) return false;
     const age = Date.now() - Date.parse(base.fetchedAt);
     return age >= 0 && age < INCREMENTAL_MAX_AGE_MS;
@@ -290,6 +291,7 @@ export class GithubService {
       return [...fresh, ...rows.filter((r) => !touched.has(rowKey(r)) && !freshKeys.has(rowKey(r)))];
     };
     return {
+      schema: SWEEP_SCHEMA,
       fetchedAt,
       org: base.org,
       range,

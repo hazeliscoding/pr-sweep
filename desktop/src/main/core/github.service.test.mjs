@@ -6,6 +6,7 @@
  */
 import assert from 'node:assert';
 import { GithubService } from '../../../dist/main/main/core/github.service.js';
+import { SWEEP_SCHEMA } from '../../../dist/main/shared/types.js';
 
 function node(number, reviewDecision, extra = {}) {
   return {
@@ -247,6 +248,7 @@ await assert.rejects(
 {
   const base = {
     fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [row(1, 'needs-review'), row(2, 'needs-review')],
@@ -278,6 +280,7 @@ await assert.rejects(
 {
   const base = {
     fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [row(1, 'needs-review'), row(2, 'approved')],
@@ -303,6 +306,7 @@ await assert.rejects(
 {
   const base = {
     fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [row(1, 'needs-review')],
@@ -327,6 +331,7 @@ await assert.rejects(
 {
   const base = {
     fetchedAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [],
@@ -428,6 +433,7 @@ await assert.rejects(
   await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
   const base = {
     fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [row(1, 'needs-review')],
@@ -460,6 +466,36 @@ await assert.rejects(
   assert.ok(!docs.probe.includes('timelineItems'), 'changed probe stays bare');
 }
 
+// --- results carry the snapshot schema ---
+{
+  const { result } = await runSweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.strictEqual(result.schema, SWEEP_SCHEMA, 'full sweep result is stamped');
+}
+
+// --- a base from an older schema is never patched: full sweep instead ---
+{
+  const queries = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    queries.push(body.variables.q);
+    return json(page([]));
+  };
+  const base = {
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [row(1, 'needs-review')],
+    merged: [],
+    queue: [],
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+  assert.ok(!queries.some((q) => q.includes('updated:>=')), 'no incremental cutoff used');
+  assert.strictEqual(svc.lastSweep.mode, 'full');
+  assert.strictEqual(result.schema, SWEEP_SCHEMA, 'the replacement is stamped');
+}
+
 // --- lastSweep records mode, duration, round trips and retries (the PRSWEEP_DEBUG line) ---
 {
   let calls = 0;
@@ -490,6 +526,7 @@ await assert.rejects(
   const range = { start: '2026-08-01', end: null };
   const base = () => ({
     fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range,
     open: [row(1, 'needs-review')],

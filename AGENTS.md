@@ -44,8 +44,9 @@ organization. It ships for Windows and Linux.
 ## Cached data and config
 
 - The boot refresh and auto-refreshes patch `snapshot.json` incrementally, so a PR nobody touched
-  on GitHub keeps its cached row. When `PrRow` gains a field, old snapshots must get a full
-  re-sweep. v0.11 adds a snapshot schema version for this; bump it with every row change.
+  on GitHub keeps its cached row. When `PrRow` or `SweepResult` changes shape, bump
+  `SWEEP_SCHEMA` in `desktop/src/shared/types.ts`. Snapshots from another schema are then
+  never painted or patched, and the first refresh after an update is a full one.
 - `ConfigService` migrates `config.json` on read (`normalizeProfile`). A new setting needs a
   default there, must survive profile export/import, and needs a case in
   `config.service.test.mjs`.

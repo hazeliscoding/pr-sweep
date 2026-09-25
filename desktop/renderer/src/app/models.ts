@@ -63,6 +63,7 @@ export interface PrRow {
 }
 
 export interface SweepResult {
+  schema: number;
   fetchedAt: string;
   org: string;
   range: DateRange;

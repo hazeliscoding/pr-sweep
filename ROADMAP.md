@@ -163,7 +163,7 @@ the `release/v0.11` branch.
 - [x] Sweep timing line under `PRSWEEP_DEBUG`: full or auto, duration, searches and retries.
       Record the v0.10.4 baseline with it on the electron team and whole-org profiles, 5 full and
       5 auto refreshes each, taking the median.
-- [ ] Snapshot schema version (`schema: 2`). `SnapshotStore.get` returns null for an older
+- [x] Snapshot schema version (`schema: 2`). `SnapshotStore.get` returns null for an older
       schema and a sweep never patches one, so the first refresh after an update is a full one.
 - [ ] Merged search in weekly windows, fetched in parallel with at most 4 in flight. Each window
       still splits itself past 1000 results.

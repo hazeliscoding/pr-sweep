@@ -81,7 +81,16 @@ export interface PrRow {
   reviewRequestedAt: string | null;
 }
 
+/**
+ * Version of the SweepResult / PrRow shape. Bump it whenever either changes:
+ * incremental refreshes keep cached rows until each PR changes on GitHub, so a
+ * snapshot from an older build must be swept afresh, never painted or patched.
+ */
+export const SWEEP_SCHEMA = 2;
+
 export interface SweepResult {
+  /** SWEEP_SCHEMA when this was written; absent in snapshots from before v0.11. */
+  schema: number;
   fetchedAt: string;
   /** Org the sweep ran against — lets a cached snapshot prove it's still relevant. */
   org: string;
