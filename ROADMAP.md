@@ -84,7 +84,8 @@ what to do next.
   time depends on org activity: when anything in the org changed since the last sweep, the
   refresh runs three more searches (4 requests, about 2 s). Compare auto-refreshes with the same
   request count.
-- **Whole-org views on big orgs stay at about 110 s for v0.11.** Their time goes to 60 s waits
+- **Whole-org views on big orgs stay slow for v0.11:** about 110 s after the page-size fallback,
+  170 s once carried-over PRs joined the board. Their time goes to 60 s waits
   on GitHub's secondary rate limit (403 with Retry-After). The waits track the number of search
   requests: the team profile (8–9 requests per sweep) almost never hits one, and whole-org
   (30–70) always does. Remembering shrunken page sizes across searches was tried and reverted,
@@ -189,7 +190,7 @@ the `release/v0.11` branch.
       *Measured: the team profile's full sweep takes 8.9 s median, and the whole-org view
       completes in 5 of 5 runs (109 s median, 93–173 s). Most of that time is 60 s waits on
       GitHub's secondary rate limit (403 with Retry-After), 4–9 per whole-org sweep.*
-- [ ] Data, then measure against the budget:
+- [x] Data, then measure against the budget:
   - the open search gains `id`, `reviewRequests.totalCount`, team slugs and the last commit's
     `committedDate`. Review requests to teams now count, and the "Awaiting" column shows them.
   - a carried-over search (`updated:<rangeStart`, same fields) runs in parallel with it.
@@ -197,7 +198,13 @@ the `release/v0.11` branch.
     for approved, changes-requested and unrequested needs-review rows. It starts as soon as both
     open searches land.
   - new `PrRow` fields: `mergeable`, `lastCommitAt`, `approvedAt`, `changesRequestedAt`,
-    `reviewCount`, `requestCount` and `attention`.
+    `reviewCount` and `requestCount` (schema 3). `attention` arrives with the engine.
+
+  *Measured: the team profile's full sweep takes 9.1 s median (10 requests) and its quiet
+  auto-refresh 0.6 s, both within budget. A live sweep filled details on exactly the 27 rows that
+  need them and found 6 merge conflicts. The whole-org view still completes in 5 of 5 runs, but
+  at 170 s median: its carried-over PRs add search requests, and with them more rate-limit
+  waits.*
 - [ ] Attention engine: `desktop/src/main/core/attention.ts`, a pure function with a test for each
       reason at its boundary. `prs:fetch` runs it over the open rows after every sweep, full or
       incremental. It also returns `sprintRisk`. Editing `staleDays` triggers a refresh.
