@@ -217,7 +217,7 @@ the `release/v0.11` branch.
 - [ ] Snooze per row, plus "Show snoozed" to reveal and unsnooze.
 - [ ] Tray: a "N need attention (team)" menu line and tooltip fallback, with `attentionCount`
       added to `syncTray`. Settings: the stale-threshold help text mentions the Sweep.
-- [ ] `chore(release): v0.11.0`, then a pull request to `main`. Once it ships, update an installed
+- [ ] `chore(release): v0.11.0`, then mark the pull request ready and merge it. Once it ships, update an installed
       v0.10.4 through the auto-updater and check that the first refresh fills every row without a
       manual Refresh.
 
