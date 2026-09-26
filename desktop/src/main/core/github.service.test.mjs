@@ -10,6 +10,7 @@ import { SWEEP_SCHEMA } from '../../../dist/main/shared/types.js';
 
 function node(number, reviewDecision, extra = {}) {
   return {
+    id: `n${number}`,
     number,
     title: `pr ${number}`,
     url: `https://github.com/o/r/pull/${number}`,
@@ -93,7 +94,8 @@ async function runSweep(config, range) {
       (queries.merged ??= []).push(q);
       return json(page([node(20, null, { mergedAt: '2026-08-05T00:00:00Z' })]));
     }
-    queries.open = q;
+    if (q.includes('updated:<')) queries.carried = q;
+    else queries.open = q;
     return json(
       page([
         node(1, 'APPROVED'),
@@ -504,7 +506,7 @@ await assert.rejects(
   globalThis.fetch = async (_url, opts) => {
     const body = JSON.parse(opts.body);
     if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
-    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested')) return json(page([]));
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested') || body.variables.q.includes('updated:<')) return json(page([]));
     sizes.push(body.variables.first);
     if (body.variables.first === 100) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
     if (body.variables.first === 50) return { ok: false, status: 504, headers: headers(), json: async () => ({}) };
@@ -523,7 +525,7 @@ await assert.rejects(
   globalThis.fetch = async (_url, opts) => {
     const body = JSON.parse(opts.body);
     if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
-    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested')) return json(page([]));
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested') || body.variables.q.includes('updated:<')) return json(page([]));
     const { first, after } = body.variables;
     calls.push({ first, after });
     if (first === 100) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
@@ -552,7 +554,7 @@ await assert.rejects(
   globalThis.fetch = async (_url, opts) => {
     const body = JSON.parse(opts.body);
     if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
-    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested')) return json(page([]));
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested') || body.variables.q.includes('updated:<')) return json(page([]));
     sizes.push(body.variables.first);
     return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
   };
@@ -568,7 +570,7 @@ await assert.rejects(
   globalThis.fetch = async (_url, opts) => {
     const body = JSON.parse(opts.body);
     if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
-    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested')) return json(page([]));
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested') || body.variables.q.includes('updated:<')) return json(page([]));
     sizes.push(body.variables.first);
     return body.variables.first === 100 ? truncated : json(page([node(1, 'APPROVED')]));
   };
@@ -589,6 +591,227 @@ await assert.rejects(
   const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
   assert.equal(await svc.viewer(), 'me');
   assert.equal(calls, 2, 'retried once');
+}
+
+// --- open PRs come from two searches: updated since the range start, and carried over ---
+{
+  const today = new Date().toISOString().slice(0, 10);
+  const { result, queries } = await runSweep(makeConfig(), { start: '2026-08-01', end: '2026-08-15' });
+  assert.match(queries.open, new RegExp(`updated:2026-08-01\\.\\.${today}`), 'open ignores the range end');
+  assert.match(queries.carried, /is:open/);
+  assert.match(queries.carried, /draft:false/);
+  assert.match(queries.carried, /\(author:alice OR author:bob\)/);
+  assert.match(queries.carried, /updated:<2026-08-01/, 'carried over = last updated before the range');
+  assert.match(queries.carried, new RegExp(`created:2008-01-01\\.\\.${today}`), 'windowed on created');
+  assert.equal(result.open.length, 5, 'the same PR from both searches is kept once');
+}
+
+// --- carried-over PRs join the open rows ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested')) return json(page([]));
+    return json(page([q.includes('updated:<') ? node(9, 'REVIEW_REQUIRED') : node(1, 'APPROVED')]));
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(result.open.map((r) => r.number).sort(), [1, 9]);
+}
+
+// --- review requests to teams count, and show as org/slug ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    return json(
+      page([
+        node(1, 'REVIEW_REQUIRED', {
+          reviewRequests: {
+            totalCount: 2,
+            nodes: [{ requestedReviewer: { login: 'dana' } }, { requestedReviewer: { combinedSlug: 'acme/platform' } }],
+          },
+        }),
+        node(2, 'REVIEW_REQUIRED'),
+      ]),
+    );
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  const pr = (n) => result.open.find((r) => r.number === n);
+  assert.deepEqual(pr(1).requestedReviewers, ['dana', 'acme/platform']);
+  assert.equal(pr(1).requestCount, 2);
+  assert.equal(pr(2).requestCount, 0, 'no requests at all');
+}
+
+// --- the last commit's time maps; merged rows have none ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('is:merged')) return json(page([node(20, null, { mergedAt: '2026-08-05T00:00:00Z' })]));
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    return json(
+      page([
+        node(1, 'REVIEW_REQUIRED', {
+          commits: {
+            nodes: [{ commit: { committedDate: '2026-08-03T10:00:00Z', statusCheckRollup: { state: 'SUCCESS' } } }],
+          },
+        }),
+      ]),
+    );
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: '2026-08-07' });
+  assert.equal(result.open[0].lastCommitAt, '2026-08-03T10:00:00Z');
+  assert.strictEqual(result.merged[0].lastCommitAt, null);
+}
+
+// --- details are fetched only for approved, changes-requested and unrequested needs-review PRs ---
+{
+  const detailIds = [];
+  const detail = {
+    n1: {
+      id: 'n1',
+      mergeable: 'CONFLICTING',
+      latestReviews: {
+        totalCount: 3,
+        nodes: [
+          { state: 'COMMENTED', submittedAt: '2026-08-02T00:00:00Z' },
+          { state: 'APPROVED', submittedAt: '2026-08-04T00:00:00Z' },
+          { state: 'APPROVED', submittedAt: '2026-08-03T00:00:00Z' },
+        ],
+      },
+    },
+    n2: {
+      id: 'n2',
+      mergeable: 'MERGEABLE',
+      latestReviews: { totalCount: 1, nodes: [{ state: 'CHANGES_REQUESTED', submittedAt: '2026-08-05T00:00:00Z' }] },
+    },
+    n4: { id: 'n4', mergeable: 'UNKNOWN', latestReviews: { totalCount: 0, nodes: [] } },
+  };
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (body.query.includes('nodes(ids:')) {
+      detailIds.push(...body.variables.ids);
+      return json({ nodes: body.variables.ids.map((id) => detail[id]) });
+    }
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    const requested = { totalCount: 1, nodes: [{ requestedReviewer: { login: 'dana' } }] };
+    return json(
+      page([
+        node(1, 'APPROVED', { id: 'n1' }),
+        node(2, 'CHANGES_REQUESTED', { id: 'n2' }),
+        node(3, 'REVIEW_REQUIRED', { id: 'n3', reviewRequests: requested }),
+        node(4, null, { id: 'n4' }),
+        node(5, 'REVIEW_REQUIRED', { id: 'n5', isDraft: true }),
+        node(6, 'APPROVED', { id: 'n6', isDraft: true }),
+      ]),
+    );
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig({ includeDrafts: true }), { start: '2026-08-01', end: null });
+  assert.deepEqual(detailIds.sort(), ['n1', 'n2', 'n4'], 'never requested PRs with requests, or drafts');
+  const pr = (n) => result.open.find((r) => r.number === n);
+  assert.equal(pr(1).mergeable, 'conflicting');
+  assert.equal(pr(1).approvedAt, '2026-08-04T00:00:00Z', 'newest approval, whatever the order');
+  assert.strictEqual(pr(1).changesRequestedAt, null);
+  assert.equal(pr(1).reviewCount, 3);
+  assert.equal(pr(2).mergeable, 'mergeable');
+  assert.equal(pr(2).changesRequestedAt, '2026-08-05T00:00:00Z');
+  assert.equal(pr(4).mergeable, 'unknown');
+  assert.equal(pr(4).reviewCount, 0);
+  for (const n of [3, 5, 6]) {
+    assert.strictEqual(pr(n).mergeable, null, `#${n} has no details`);
+    assert.strictEqual(pr(n).reviewCount, null, `#${n} review count unknown`);
+  }
+}
+
+// --- details go out in batches of 100 ---
+{
+  const batches = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (body.query.includes('nodes(ids:')) {
+      batches.push(body.variables.ids.length);
+      return json({
+        nodes: body.variables.ids.map((id) => ({ id, mergeable: 'MERGEABLE', latestReviews: { totalCount: 1, nodes: [] } })),
+      });
+    }
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    return json(page(Array.from({ length: 150 }, (_, i) => node(i + 1, 'APPROVED', { id: `n${i + 1}` }))));
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(batches.sort((a, b) => b - a), [100, 50]);
+  assert.ok(result.open.every((r) => r.mergeable === 'mergeable'));
+}
+
+// --- a failed detail query still gives a board, just without the details ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (body.query.includes('nodes(ids:')) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    return json(page([node(1, 'APPROVED', { id: 'n1' })]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.equal(result.open.length, 1);
+  assert.strictEqual(result.open[0].mergeable, null);
+  assert.strictEqual(result.open[0].approvedAt, null);
+  assert.equal(svc.lastSweep.ok, true);
+}
+
+// --- incremental: only changed PRs get new details; cached rows keep theirs ---
+{
+  const cached = {
+    ...row(1, 'approved'),
+    mergeable: 'conflicting',
+    approvedAt: '2026-08-02T00:00:00Z',
+    changesRequestedAt: null,
+    reviewCount: 1,
+  };
+  const base = {
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [cached],
+    merged: [],
+    queue: [],
+  };
+  const detailIds = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (body.query.includes('nodes(ids:')) {
+      detailIds.push(...body.variables.ids);
+      return json({
+        nodes: body.variables.ids.map((id) => ({ id, mergeable: 'MERGEABLE', latestReviews: { totalCount: 1, nodes: [] } })),
+      });
+    }
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('review-requested') || q.includes('is:merged')) return json(page([]));
+    if (q.includes('is:open')) return json(page([node(2, 'APPROVED', { id: 'n2' })]));
+    return json(page([node(2, 'APPROVED')])); // the org-wide probe: only #2 changed
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+  assert.deepEqual(detailIds, ['n2'], 'details only for the changed PR');
+  const pr = (n) => result.open.find((r) => r.number === n);
+  assert.equal(pr(1).mergeable, 'conflicting', 'untouched row keeps its cached details');
+  assert.equal(pr(2).mergeable, 'mergeable');
 }
 
 // --- results carry the snapshot schema ---

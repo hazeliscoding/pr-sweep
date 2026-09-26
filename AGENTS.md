@@ -38,6 +38,9 @@ organization. It ships for Windows and Linux.
 - `statusCheckRollup` and `timelineItems` dominate sweep latency. Request an expensive field only
   in the query whose rows display it (`QUERY_BARE`, `QUERY_OPEN`, `QUERY_QUEUE`). Measure sweep
   time on a large org before and after adding fields.
+- A field only some rows need (`mergeable`, review times) goes in `DETAIL_QUERY`, fetched with
+  `nodes(ids:)` for just those rows, never in a search. Details are optional: if that query
+  fails, the sweep still succeeds and those fields stay null.
 - Verify API behavior against the live API before encoding it. Record each verified quirk in the
   header comment of `github.service.ts` and in the README.
 

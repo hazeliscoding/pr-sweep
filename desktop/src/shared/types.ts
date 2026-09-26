@@ -73,12 +73,22 @@ export interface PrRow {
   comments: number;
   additions: number;
   deletions: number;
-  /** Logins with an outstanding review request. */
+  /** Logins (and org/team slugs) with an outstanding review request. */
   requestedReviewers: string[];
   /** Latest commit's check rollup as a traffic light; null = no checks configured. */
   ci: 'success' | 'failure' | 'pending' | null;
   /** When the signed-in user's review was requested — set on queue rows, null elsewhere. */
   reviewRequestedAt: string | null;
+  /** Review requests to people and teams (requestedReviewers lists at most 10). */
+  requestCount: number;
+  /** When the latest commit was made; null on merged rows. */
+  lastCommitAt: string | null;
+  // Fetched only for approved, changes-requested and unrequested needs-review
+  // rows (see needsDetails in github.service.ts); null elsewhere.
+  mergeable: 'mergeable' | 'conflicting' | 'unknown' | null;
+  approvedAt: string | null;
+  changesRequestedAt: string | null;
+  reviewCount: number | null;
 }
 
 /**
@@ -86,7 +96,7 @@ export interface PrRow {
  * incremental refreshes keep cached rows until each PR changes on GitHub, so a
  * snapshot from an older build must be swept afresh, never painted or patched.
  */
-export const SWEEP_SCHEMA = 2;
+export const SWEEP_SCHEMA = 3;
 
 export interface SweepResult {
   /** SWEEP_SCHEMA when this was written; absent in snapshots from before v0.11. */

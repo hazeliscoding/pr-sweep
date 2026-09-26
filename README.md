@@ -60,8 +60,9 @@ Grab a build from [Releases](../../releases).
 
 ## What it does
 
-- **Sorts** every PR your team has open or merged in the date range into Needs review, Changes
-  requested, Approved and Merged, from GitHub's `reviewDecision`. There are no labels to keep up.
+- **Sorts** every open PR your team has, plus what merged in the date range, into Needs review,
+  Changes requested, Approved and Merged, from GitHub's `reviewDecision`. There are no labels to
+  keep up.
 - **Queues** the open PRs anywhere in the org that are waiting on *your* review, with how long
   each has waited.
 - **Flags** failing CI on every open PR, and PRs untouched for longer than a threshold you set.

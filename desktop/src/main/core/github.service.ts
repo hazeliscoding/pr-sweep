@@ -16,6 +16,9 @@
  * Big-org behavior:
  *  - date-windowed queries split themselves when they'd hit the 1000-result cap,
  *    so a busy quarter still sweeps completely instead of silently truncating.
+ *  - open PRs come from two searches side by side: updated since the range
+ *    start, and carried over from before it. Mergeability and review times
+ *    come after, only for the rows that need them (DETAIL_QUERY).
  *  - the full sweep's merged list runs one week per search, a few in flight,
  *    instead of paging through the whole range one request at a time.
  *  - a search page that times out (502/504, or a 200 with a cut-off body) is
@@ -65,17 +68,18 @@ const INCREMENTAL_MAX_AGE_MS = 60 * 60_000;
 // merged rows show neither, open rows show the CI dot, queue rows also show
 // the review-wait badge. The incremental probe needs only keys → bare.
 const NODE_FIELDS = `
-          number title url isDraft createdAt updatedAt mergedAt
+          id number title url isDraft createdAt updatedAt mergedAt
           reviewDecision totalCommentsCount additions deletions
           repository { name }
           author { login avatarUrl }
           reviewRequests(first: 10) {
-            nodes { requestedReviewer { ... on User { login } } }
+            totalCount
+            nodes { requestedReviewer { ... on User { login } ... on Team { combinedSlug } } }
           }`;
 
 const CI_FIELD = `
           commits(last: 1) {
-            nodes { commit { statusCheckRollup { state } } }
+            nodes { commit { committedDate statusCheckRollup { state } } }
           }`;
 
 const TIMELINE_FIELD = `
@@ -107,7 +111,28 @@ const QUERY_BARE = buildSearchQuery({});
 const QUERY_OPEN = buildSearchQuery({ ci: true });
 const QUERY_QUEUE = buildSearchQuery({ ci: true, timeline: true });
 
+/**
+ * Mergeability and review times, fetched after the searches only for the rows
+ * whose attention depends on them (see needsDetails). On every open row they'd
+ * cost ~20% of the open search's time; mergeable is the expensive one.
+ */
+const DETAIL_QUERY = `
+  query ($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on PullRequest {
+        id mergeable
+        latestReviews(first: 10) { totalCount nodes { state submittedAt } }
+      }
+    }
+  }
+`;
+/** nodes(ids:) takes at most 100 ids. */
+const DETAIL_BATCH = 100;
+/** Carried-over PRs are split by creation date from here: nothing on GitHub is older. */
+const CARRIED_FROM = '2008-01-01';
+
 interface SearchNode {
+  id: string;
   number: number;
   title: string;
   url: string;
@@ -121,10 +146,14 @@ interface SearchNode {
   deletions: number;
   repository: { name: string };
   author: { login: string; avatarUrl: string } | null;
-  reviewRequests: { nodes: Array<{ requestedReviewer: { login?: string } | null }> };
+  reviewRequests: {
+    totalCount?: number;
+    nodes: Array<{ requestedReviewer: { login?: string; combinedSlug?: string } | null }>;
+  };
   commits?: {
     nodes: Array<{
       commit: {
+        committedDate?: string;
         statusCheckRollup: { state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' } | null;
       };
     }>;
@@ -133,6 +162,14 @@ interface SearchNode {
     nodes: Array<{ createdAt?: string; requestedReviewer?: { login?: string } | null }>;
   };
 }
+
+interface DetailNode {
+  id: string;
+  mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+  latestReviews: { totalCount: number; nodes: Array<{ state: string; submittedAt: string | null }> };
+}
+
+type Details = Pick<PrRow, 'mergeable' | 'approvedAt' | 'changesRequestedAt' | 'reviewCount'>;
 
 interface SearchPage {
   search: {
@@ -245,8 +282,21 @@ export class GithubService {
 
     const today = new Date().toISOString().slice(0, 10);
     const end = range.end ?? today;
-    const [open, merged, queue] = await Promise.all([
-      this.searchWindowed((a, b) => `${parts.open} updated:${a}..${b}`, range.start, end, QUERY_OPEN),
+    // Open means open now, whatever the range's end: everything updated since
+    // the range start, plus PRs carried over from before it. Two searches, so
+    // they run side by side. Details follow as soon as both land, while the
+    // merged weeks are still in flight.
+    const open = Promise.all([
+      this.searchWindowed((a, b) => `${parts.open} updated:${a}..${b}`, range.start, today, QUERY_OPEN),
+      this.searchWindowed(
+        (a, b) => `${parts.open} updated:<${range.start} created:${a}..${b}`,
+        CARRIED_FROM,
+        today,
+        QUERY_OPEN,
+      ),
+    ]).then(([recent, carried]) => this.openRows(uniqueNodes([...recent, ...carried])));
+    const [openRows, merged, queue] = await Promise.all([
+      open,
       this.searchMerged(parts.merged, range.start, end),
       this.searchAll(parts.queue, QUERY_QUEUE).then((r) => r.nodes),
     ]);
@@ -255,7 +305,7 @@ export class GithubService {
       fetchedAt: new Date().toISOString(),
       org: profile.org,
       range,
-      open: open.map((n) => toRow(n, bucketOf(n))),
+      open: openRows,
       merged: merged.map((n) => toRow(n, 'merged')),
       // Queue rows resolve "when was *my* review requested" from the timeline.
       queue: queue.map((n) => toRow(n, bucketOf(n), login)),
@@ -282,8 +332,7 @@ export class GithubService {
     range: DateRange,
     login: string,
   ): Promise<SweepResult | null> {
-    // `since` never reaches before the range start, so the looser updated:>=
-    // filter on the open delta can't smuggle in rows the range would exclude.
+    // `since` never reaches before the range start.
     const sinceMs = Math.max(
       Date.parse(base.fetchedAt) - INCREMENTAL_SKEW_MS,
       Date.parse(`${range.start}T00:00:00Z`),
@@ -301,7 +350,7 @@ export class GithubService {
 
     const mergedRange = range.end ? `merged:${range.start}..${range.end}` : `merged:>=${range.start}`;
     const [open, merged, queue] = await Promise.all([
-      this.searchAll(`${parts.open} updated:>=${since}`, QUERY_OPEN).then((r) => r.nodes),
+      this.searchAll(`${parts.open} updated:>=${since}`, QUERY_OPEN).then((r) => this.openRows(r.nodes)),
       this.searchAll(`${parts.merged} ${mergedRange} updated:>=${since}`, QUERY_BARE).then((r) => r.nodes),
       this.searchAll(`${parts.queue} updated:>=${since}`, QUERY_QUEUE).then((r) => r.nodes),
     ]);
@@ -315,7 +364,7 @@ export class GithubService {
       fetchedAt,
       org: base.org,
       range,
-      open: patch(base.open, open.map((n) => toRow(n, bucketOf(n)))),
+      open: patch(base.open, open),
       merged: patch(base.merged, merged.map((n) => toRow(n, 'merged'))),
       queue: patch(base.queue, queue.map((n) => toRow(n, bucketOf(n), login))),
     };
@@ -347,6 +396,32 @@ export class GithubService {
       this.searchWindowed(build, addDays(mid, 1), to, doc, depth + 1),
     ]);
     return uniqueNodes([...a, ...b]);
+  }
+
+  /** Open rows, with details for the ones that need them. */
+  private async openRows(nodes: SearchNode[]): Promise<PrRow[]> {
+    const details = await this.fetchDetails(nodes.filter(needsDetails).map((n) => n.id));
+    return nodes.map((n) => toRow(n, bucketOf(n), undefined, details.get(n.id)));
+  }
+
+  /**
+   * DETAIL_QUERY for `ids`, a batch at a time. The details are optional: if
+   * GitHub won't answer, the board still shows, and those rows just lack them
+   * until the next sweep.
+   */
+  private async fetchDetails(ids: string[]): Promise<Map<string, Details>> {
+    const details = new Map<string, Details>();
+    try {
+      for (let i = 0; i < ids.length; i += DETAIL_BATCH) {
+        const data = await this.graphql<{ nodes: Array<DetailNode | null> }>(DETAIL_QUERY, {
+          ids: ids.slice(i, i + DETAIL_BATCH),
+        });
+        for (const d of data.nodes ?? []) if (d?.id) details.set(d.id, detailsOf(d));
+      }
+    } catch (e) {
+      if (process.env.PRSWEEP_DEBUG) console.log(`[github] details skipped: ${(e as Error).message}`);
+    }
+    return details;
   }
 
   /** Merged PRs in from..to, one week per search with MERGED_CONCURRENCY in flight. */
@@ -500,7 +575,37 @@ function bucketOf(n: SearchNode): ReviewBucket {
   }
 }
 
-function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string): PrRow {
+/**
+ * Rows whose attention reasons need DETAIL_QUERY: approved (merge conflicts,
+ * approval age), changes requested (review time vs. last commit), and needs
+ * review with nobody asked (whether anyone reviewed anyway). Drafts only ever
+ * get the old-draft reason.
+ */
+function needsDetails(n: SearchNode): boolean {
+  if (n.isDraft) return false;
+  return bucketOf(n) !== 'needs-review' || requestCountOf(n) === 0;
+}
+
+function requestCountOf(n: SearchNode): number {
+  return n.reviewRequests.totalCount ?? n.reviewRequests.nodes.length;
+}
+
+function detailsOf(d: DetailNode): Details {
+  const newest = (state: string): string | null =>
+    d.latestReviews.nodes
+      .filter((r) => r.state === state && r.submittedAt)
+      .map((r) => r.submittedAt as string)
+      .sort()
+      .pop() ?? null;
+  return {
+    mergeable: d.mergeable === 'CONFLICTING' ? 'conflicting' : d.mergeable === 'MERGEABLE' ? 'mergeable' : 'unknown',
+    approvedAt: newest('APPROVED'),
+    changesRequestedAt: newest('CHANGES_REQUESTED'),
+    reviewCount: d.latestReviews.totalCount,
+  };
+}
+
+function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string, details?: Details): PrRow {
   return {
     repo: n.repository.name,
     number: n.number,
@@ -517,10 +622,16 @@ function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string): PrRow {
     additions: n.additions,
     deletions: n.deletions,
     requestedReviewers: n.reviewRequests.nodes
-      .map((r) => r.requestedReviewer?.login)
+      .map((r) => r.requestedReviewer?.login ?? r.requestedReviewer?.combinedSlug)
       .filter((l): l is string => !!l),
+    requestCount: requestCountOf(n),
     ci: ciOf(n),
+    lastCommitAt: n.commits?.nodes?.[0]?.commit?.committedDate ?? null,
     reviewRequestedAt: viewer ? requestedAtFor(n, viewer) : null,
+    mergeable: details?.mergeable ?? null,
+    approvedAt: details?.approvedAt ?? null,
+    changesRequestedAt: details?.changesRequestedAt ?? null,
+    reviewCount: details?.reviewCount ?? null,
   };
 }
 

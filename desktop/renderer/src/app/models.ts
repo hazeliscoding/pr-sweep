@@ -60,6 +60,12 @@ export interface PrRow {
   ci: 'success' | 'failure' | 'pending' | null;
   /** When the signed-in user's review was requested — set on queue rows, null elsewhere. */
   reviewRequestedAt: string | null;
+  requestCount: number;
+  lastCommitAt: string | null;
+  mergeable: 'mergeable' | 'conflicting' | 'unknown' | null;
+  approvedAt: string | null;
+  changesRequestedAt: string | null;
+  reviewCount: number | null;
 }
 
 export interface SweepResult {
