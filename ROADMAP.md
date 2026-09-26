@@ -41,6 +41,13 @@ what to do next.
   lockup layout of logo design 1b. Design 1b's own mark was considered and dropped. The assets are
   in `docs/brand/`, with `-dark` files for dark backgrounds.
 
+## Decisions (2026-09-26)
+
+- **No Tauri rewrite before 1.0.** Sweep time is GitHub's, not the app's: after warm-up, the
+  app's own CPU is 77–173 ms of a 7–8 s team sweep (1–2%), so a Rust client can't make sweeps
+  meaningfully faster. What Tauri would change is installer size and idle memory, which
+  haven't been measured yet.
+
 ## v0.11 decisions (2026-09-25)
 
 - **The board shows all of the team's open PRs**, not only the ones updated in the range, so PRs
@@ -280,6 +287,11 @@ Theme: nothing new. Make what exists boringly reliable.
 
 - Faster whole-org views on very large orgs: pace searches under GitHub's secondary rate
   limit instead of waiting out 403s
+- Tauri port, decided after 1.0 from measured idle memory and installer size. A port means
+  rewriting the main process in Rust, moving to Tauri's updater through a bridge release, and
+  every user signing in again (Electron `safeStorage` tokens can't be read). If memory matters
+  sooner, a cheaper first step: move the refresh loop into the main process and close the
+  window, instead of hiding it, when the app goes to the tray.
 - AI "explain this sprint", built on the attention engine
 - Grouping by linked issues (`closingIssuesReferences`) and GitHub Projects
 - Review-wait metrics for merged PRs (needs review timestamps on every merged PR, which is
