@@ -227,7 +227,7 @@ the `release/v0.11` branch.
   Drafts only ever get reason 9, and `staleDays = 0` turns off reasons 7–9. The list is ordered
   by most severe reason, then longest-standing first.
 
-- [ ] Sweep section at the top of the board: PR, CI, title (a link), why (the most severe reason
+- [x] Sweep section at the top of the board: PR, CI, title (a link), why (the most severe reason
       and its age, plus chips for the others), author, next step and snooze. Rows aren't clickable
       as a whole. Author chips and the text filter apply. When the range ends within 2 days, the
       header says how many open PRs aren't approved yet. Empty state: "Nothing needs attention."

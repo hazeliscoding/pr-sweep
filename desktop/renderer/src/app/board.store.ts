@@ -64,6 +64,16 @@ export class BoardStore {
       .sort(byNewest((r) => r.updatedAt));
   });
 
+  /**
+   * Open PRs the attention engine flagged, with the author chips and text
+   * filter applied. Most severe first, then the longest-standing.
+   */
+  readonly sweep = computed(() =>
+    this.applyFilters((this.result()?.open ?? []).filter((r) => r.attention.length > 0)).sort(bySeverityThenAge),
+  );
+
+  readonly sprintRisk = computed(() => this.result()?.sprintRisk ?? null);
+
   readonly needsReview = computed(() => this.slice('needs-review'));
   readonly changesRequested = computed(() => this.slice('changes-requested'));
   readonly approved = computed(() => this.slice('approved'));
@@ -307,6 +317,11 @@ export class BoardStore {
     void this.api.openExternal(row.url);
   }
 
+  /** A next-step link: the PR itself or one of its tabs (checks, files). */
+  openUrl(url: string): void {
+    void this.api.openExternal(url);
+  }
+
   installUpdate(): void {
     void this.api.installUpdate();
   }
@@ -319,6 +334,11 @@ export class BoardStore {
       this.refreshTimer = setInterval(() => void this.refresh({ auto: true }), minutes * 60_000);
     }
   }
+}
+
+function bySeverityThenAge(a: PrRow, b: PrRow): number {
+  const [x, y] = [a.attention[0], b.attention[0]];
+  return x.severity - y.severity || (x.since ?? a.updatedAt).localeCompare(y.since ?? b.updatedAt);
 }
 
 function byNewest(key: (r: PrRow) => string): (a: PrRow, b: PrRow) => number {

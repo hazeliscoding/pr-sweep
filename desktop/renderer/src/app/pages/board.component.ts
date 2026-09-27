@@ -1,6 +1,18 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { BoardStore } from '../board.store';
-import { PrRow } from '../models';
+import { Attention, AttentionReason, PrRow, SprintRisk } from '../models';
+
+const REASON_LABELS: Record<AttentionReason, string> = {
+  CI_FAILING: 'CI failing',
+  MERGE_CONFLICT: 'Merge conflict',
+  CHANGES_NOT_ADDRESSED: 'Changes not addressed',
+  NEEDS_RE_REVIEW: 'Needs re-review',
+  APPROVED_NOT_MERGED: 'Approved, not merged',
+  NO_REVIEWERS: 'No reviewers',
+  WAITING_FOR_REVIEW: 'Waiting for review',
+  STALE: 'Stale',
+  DRAFT_TOO_LONG: 'Old draft',
+};
 
 interface BoardSection {
   title: string;
@@ -14,9 +26,11 @@ interface BoardSection {
 
 /**
  * The dashboard: KPI counts, a filter toolbar (author toggles + free text),
- * and one dense table per status — needs review / changes requested /
- * approved / merged this sprint. All slicing is client-side over the store's
- * fetched result; clicking a row opens the PR in the default browser.
+ * the Sweep (open PRs the attention engine flagged, each with its reason and
+ * next step), then one dense table per status — needs review / changes
+ * requested / approved / merged this sprint. All slicing is client-side over
+ * the store's fetched result; clicking a status row opens the PR in the
+ * default browser.
  */
 @Component({
   selector: 'app-board',
@@ -74,6 +88,75 @@ interface BoardSection {
         (input)="store.search.set($any($event.target).value)"
       />
     </div>
+
+    <section class="section sweep" aria-labelledby="sweep-title">
+      <div class="sweep-head">
+        <h2 id="sweep-title">Sweep <span class="muted">({{ store.sweep().length }})</span></h2>
+        @if (store.sprintRisk(); as risk) {
+          <p class="sprint-risk">{{ sprintLine(risk) }}</p>
+        }
+      </div>
+      @if (store.sweep().length > 0) {
+        <table>
+          <thead>
+            <tr>
+              <th>PR</th>
+              <th class="ci-col" title="Latest commit's checks">CI</th>
+              <th>Title</th>
+              <th>Why</th>
+              <th>Author</th>
+              <th class="next">Next step</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Rows aren't one big button here: they hold buttons of their own. -->
+            @for (pr of store.sweep(); track pr.url) {
+              <tr>
+                <td class="pr-ref">{{ pr.repo }}#{{ pr.number }}</td>
+                <td class="ci-col">
+                  @if (pr.ci; as ci) {
+                    <span class="ci-dot ci-{{ ci }}" [attr.aria-label]="'CI ' + ci" [title]="'CI ' + ci"></span>
+                  }
+                </td>
+                <td>
+                  <button
+                    class="link-button"
+                    [title]="pr.url"
+                    [attr.aria-label]="'Open ' + pr.repo + '#' + pr.number + ' — ' + pr.title"
+                    (click)="store.openPr(pr)"
+                  >
+                    {{ pr.title }}
+                  </button>
+                  @if (pr.isDraft) {
+                    <span class="draft-tag">draft</span>
+                  }
+                </td>
+                <td class="reason">
+                  <span class="reason-label tier-{{ tier(pr.attention[0]) }}">{{ label(pr.attention[0]) }}</span>
+                  @if (pr.attention[0].since; as since) {
+                    <span class="reason-age" [title]="'Since ' + since"> · {{ age(since) }}</span>
+                  }
+                  @for (other of pr.attention.slice(1); track other.reason) {
+                    <span class="reason-chip">{{ label(other) }}</span>
+                  }
+                </td>
+                <td>{{ pr.author }}</td>
+                <td class="next">
+                  <button
+                    [attr.aria-label]="pr.attention[0].action + ': ' + pr.repo + '#' + pr.number"
+                    (click)="store.openUrl(pr.attention[0].href)"
+                  >
+                    {{ pr.attention[0].action }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="empty-note">Nothing needs attention.</p>
+      }
+    </section>
 
     @for (section of sections(); track section.title) {
       <section class="section">
@@ -213,6 +296,31 @@ export class BoardComponent {
   isWaitHot(pr: PrRow): boolean {
     const days = this.store.activeProfile()?.staleDays ?? 0;
     return days > 0 && this.waitingDays(pr) >= days;
+  }
+
+  label(a: Attention): string {
+    return REASON_LABELS[a.reason];
+  }
+
+  /** Color tier: red for CI and conflicts, amber for stuck reviews and merges, muted for waiting. */
+  tier(a: Attention): 'hot' | 'warm' | 'cool' {
+    return a.severity <= 2 ? 'hot' : a.severity <= 5 ? 'warm' : 'cool';
+  }
+
+  /** How long a reason has held: "12m", "5h", "3d". */
+  age(since: string): string {
+    const min = Math.max(0, Math.round((Date.now() - Date.parse(since)) / 60000));
+    if (min < 60) return `${min}m`;
+    const h = Math.floor(min / 60);
+    return h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`;
+  }
+
+  sprintLine(risk: SprintRisk): string {
+    const when =
+      risk.endsInDays === 0 ? 'today' : risk.endsInDays === 1 ? 'tomorrow' : `in ${risk.endsInDays} days`;
+    if (risk.notApproved === 0) return `Sprint ends ${when}. Every open PR is approved.`;
+    const prs = risk.notApproved === 1 ? '1 open PR isn\'t' : `${risk.notApproved} open PRs aren't`;
+    return `Sprint ends ${when}: ${prs} approved yet.`;
   }
 
   ago(pr: PrRow): string {
