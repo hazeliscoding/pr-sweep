@@ -68,6 +68,8 @@ export class BoardStore {
   private readonly snoozes = signal<Record<string, Snooze>>(loadSnoozes());
   /** Reveal snoozed rows in the Sweep, muted, so they can be unsnoozed. */
   readonly showSnoozed = signal(false);
+  /** Reveal quiet rows (see isQuiet in core/attention.ts), muted. */
+  readonly showQuiet = signal(false);
 
   /**
    * Open PRs the attention engine flagged, with the author chips and text
@@ -76,8 +78,9 @@ export class BoardStore {
   private readonly flagged = computed(() =>
     this.applyFilters((this.result()?.open ?? []).filter((r) => r.attention.length > 0)).sort(bySeverityThenAge),
   );
-  readonly sweep = computed(() => this.flagged().filter((r) => !this.isSnoozed(r)));
-  readonly snoozed = computed(() => this.flagged().filter((r) => this.isSnoozed(r)));
+  readonly sweep = computed(() => this.flagged().filter((r) => !r.quiet && !this.isSnoozed(r)));
+  readonly snoozed = computed(() => this.flagged().filter((r) => !r.quiet && this.isSnoozed(r)));
+  readonly quiet = computed(() => this.flagged().filter((r) => r.quiet));
 
   readonly sprintRisk = computed(() => this.result()?.sprintRisk ?? null);
 
@@ -363,7 +366,8 @@ export class BoardStore {
    * own open PRs (approval / changes-requested / CI-failure toasts) and the
    * counts behind its menu. All from the raw result, not the filtered view, so
    * background toasts and counts don't depend on whatever author/text filter is
-   * active. Only snoozes, the user saying "not now", lower the Sweep count.
+   * active. Only quiet rows and snoozes, the user saying "not now", lower the
+   * Sweep count.
    */
   private syncTray(result: SweepResult): void {
     const login = this.auth()?.login;
@@ -371,7 +375,7 @@ export class BoardStore {
       queue: result.queue,
       mine: login ? result.open.filter((r) => r.author === login) : [],
       needsReviewCount: result.open.filter((r) => r.bucket === 'needs-review').length,
-      attentionCount: result.open.filter((r) => r.attention.length > 0 && !this.isSnoozed(r)).length,
+      attentionCount: result.open.filter((r) => r.attention.length > 0 && !r.quiet && !this.isSnoozed(r)).length,
     });
   }
 

@@ -636,6 +636,7 @@ function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string, details?: D
     reviewCount: details?.reviewCount ?? null,
     // Judged after the sweep by the attention engine (see annotate).
     attention: [],
+    quiet: false,
   };
 }
 

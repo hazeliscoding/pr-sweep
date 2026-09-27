@@ -5,7 +5,7 @@
  * node src/main/core/attention.test.mjs
  */
 import assert from 'node:assert';
-import { annotate, attention, sprintRisk } from '../../../dist/main/main/core/attention.js';
+import { annotate, attention, isQuiet, sprintRisk } from '../../../dist/main/main/core/attention.js';
 
 const NOW = Date.parse('2026-09-26T12:00:00Z');
 const HOUR = 3_600_000;
@@ -39,6 +39,7 @@ function pr(patch = {}) {
     changesRequestedAt: null,
     reviewCount: null,
     attention: [],
+    quiet: false,
     ...patch,
   };
 }
@@ -156,6 +157,21 @@ assert.deepEqual(reasons(pr()), []);
   assert.deepEqual(reasons(row), ['CI_FAILING', 'MERGE_CONFLICT', 'STALE']);
 }
 
+// --- quiet: the worst reason is a slow one, or nobody touched the PR in 30+ days ---
+{
+  const quiet = (patch) => {
+    const row = pr(patch);
+    return isQuiet(row, attention(row, ctx()), ctx());
+  };
+  assert.equal(quiet({ createdAt: ago(6 * 24) }), true, 'only waiting for review');
+  assert.equal(quiet({ updatedAt: ago(6 * 24), ci: 'pending' }), true, 'only stale');
+  assert.equal(quiet({ isDraft: true, createdAt: ago(6 * 24) }), true, 'old draft');
+  assert.equal(quiet({ ci: 'failure', updatedAt: ago(31 * 24) }), true, 'failing, but untouched for a month');
+  assert.equal(quiet({ ci: 'failure', updatedAt: ago(29 * 24) }), false, 'failing and touched within the month');
+  assert.equal(quiet({ ci: 'failure', updatedAt: ago(1) }), false);
+  assert.equal(quiet({}), false, 'nothing flagged, nothing quiet');
+}
+
 // --- sprintRisk: only in the last two days of a range with an end ---
 {
   const rows = [
@@ -186,6 +202,7 @@ assert.deepEqual(reasons(pr()), []);
   };
   const out = annotate(result, ctx({ rangeEnd: '2026-09-27' }));
   assert.deepEqual(out.open.map((r) => r.attention.map((a) => a.reason)), [['CI_FAILING'], []]);
+  assert.deepEqual(out.open.map((r) => r.quiet), [false, false]);
   assert.deepEqual(out.merged[0].attention, []);
   assert.deepEqual(out.queue[0].attention, []);
   assert.deepEqual(out.sprintRisk, { endsInDays: 1, notApproved: 2 });

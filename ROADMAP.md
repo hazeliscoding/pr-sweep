@@ -94,6 +94,11 @@ what to do next.
   author's (address the feedback) and the reviewer's (re-review after the push).
 - **Sprint-end risk is a header line, not a row reason.** As a reason it would flag nearly every
   unapproved PR in the last two days, when the list should be shortest.
+- **Quiet rows keep the Sweep short** (decided 2026-09-27). A flagged row goes quiet when its
+  worst reason is a slow one (waiting, stale, old draft) or nobody has touched the PR in 30+
+  days. Quiet rows sit behind "Show quiet", muted, and the tray count leaves them out. On the
+  electron team profile the Sweep went from 25 rows to 13. Built after a live sweep showed 25
+  of 32 open PRs flagged, with abandoned PRs burying the ones someone would act on this sprint.
 - **Drafts only get `DRAFT_TOO_LONG`.** There are no new settings: fixed thresholds are
   constants, and the slow ones use the profile's `staleDays`.
 - **Snooze** hides a row until the PR updates, gains a more severe reason, or the next day comes.
@@ -234,6 +239,8 @@ the `release/v0.11` branch.
 - [x] Snooze per row, plus "Show snoozed" to reveal and unsnooze. *Checked through the built
       app: hiding, surviving a relaunch, reveal and unsnooze, and each way a snooze ends (the PR
       changes, a worse reason, a new day).*
+- [x] Quiet rows: `isQuiet` in the engine, `quiet` on each row (schema 5), and a "Show quiet"
+      toggle. The tray count leaves them out.
 - [x] Tray: a "N need attention (team)" menu line and tooltip fallback, with `attentionCount`
       added to `syncTray`. Settings: the stale-threshold help text mentions the Sweep.
 - [ ] `chore(release): v0.11.0`, then mark the pull request ready and merge it. Once it ships, update an installed

@@ -93,6 +93,7 @@ export interface PrRow {
   changesRequestedAt: string | null;
   reviewCount: number | null;
   attention: Attention[];
+  quiet: boolean;
 }
 
 export interface SweepResult {

@@ -95,6 +95,17 @@ interface BoardSection {
         @if (store.sprintRisk(); as risk) {
           <p class="sprint-risk">{{ sprintLine(risk) }}</p>
         }
+        @if (store.quiet().length > 0) {
+          <button
+            class="toggle quiet-toggle"
+            title="Only waiting or stale, or untouched for a month"
+            [class.on]="store.showQuiet()"
+            [attr.aria-pressed]="store.showQuiet()"
+            (click)="store.showQuiet.set(!store.showQuiet())"
+          >
+            Show quiet ({{ store.quiet().length }})
+          </button>
+        }
         @if (store.snoozed().length > 0) {
           <button
             class="toggle snooze-toggle"
@@ -121,7 +132,7 @@ interface BoardSection {
           <tbody>
             <!-- Rows aren't one big button here: they hold buttons of their own. -->
             @for (pr of sweepRows(); track pr.url) {
-              <tr [class.snoozed]="store.isSnoozed(pr)">
+              <tr [class.snoozed]="!pr.quiet && store.isSnoozed(pr)" [class.quiet]="pr.quiet">
                 <td class="pr-ref">{{ pr.repo }}#{{ pr.number }}</td>
                 <td class="ci-col">
                   @if (pr.ci; as ci) {
@@ -158,7 +169,9 @@ interface BoardSection {
                   >
                     {{ pr.attention[0].action }}
                   </button>
-                  @if (store.isSnoozed(pr)) {
+                  @if (pr.quiet) {
+                    <!-- quiet rows have no snooze: they're already out of the way -->
+                  } @else if (store.isSnoozed(pr)) {
                     <button
                       class="snooze-btn"
                       [attr.aria-label]="'Unsnooze ' + pr.repo + '#' + pr.number"
@@ -184,8 +197,8 @@ interface BoardSection {
       } @else {
         <p class="empty-note">
           Nothing needs attention.
-          @if (store.snoozed().length > 0) {
-            ({{ store.snoozed().length }} snoozed)
+          @if (hiddenNote(); as note) {
+            ({{ note }})
           }
         </p>
       }
@@ -309,10 +322,21 @@ export class BoardComponent {
     },
   ]);
 
-  /** Active Sweep rows, then the snoozed ones when they're revealed. */
-  readonly sweepRows = computed(() =>
-    this.store.showSnoozed() ? [...this.store.sweep(), ...this.store.snoozed()] : this.store.sweep(),
-  );
+  /** Active Sweep rows, then the snoozed and quiet ones when they're revealed. */
+  readonly sweepRows = computed(() => [
+    ...this.store.sweep(),
+    ...(this.store.showSnoozed() ? this.store.snoozed() : []),
+    ...(this.store.showQuiet() ? this.store.quiet() : []),
+  ]);
+
+  /** "2 snoozed, 12 quiet" for the empty state; null when nothing is hidden. */
+  readonly hiddenNote = computed(() => {
+    const parts = [
+      this.store.snoozed().length ? `${this.store.snoozed().length} snoozed` : '',
+      this.store.quiet().length ? `${this.store.quiet().length} quiet` : '',
+    ].filter(Boolean);
+    return parts.length ? parts.join(', ') : null;
+  });
 
   authors(): string[] {
     return this.store.activeProfile()?.authors ?? [];

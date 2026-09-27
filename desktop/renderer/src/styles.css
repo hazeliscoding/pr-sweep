@@ -316,7 +316,9 @@ td.reason { line-height: var(--lh-dense); }
 th.next, td.next { text-align: right; white-space: nowrap; }
 td.next button { font-size: var(--fs-dense); padding: 2px 8px; }
 td.next .snooze-btn { margin-left: var(--space-2); color: var(--color-text-secondary); }
-tr.snoozed td:not(.next) { opacity: 0.55; }
+tr.snoozed td:not(.next), tr.quiet td:not(.next) { opacity: 0.55; }
+.quiet-toggle { margin-left: auto; }
+.quiet-toggle + .snooze-toggle { margin-left: 0; }
 .snooze-toggle { margin-left: auto; }
 .link-button {
   border: none;

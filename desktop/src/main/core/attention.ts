@@ -38,6 +38,10 @@ const SETTLE_MS = DAY;
 const NO_REVIEWERS_GRACE_MS = HOUR;
 /** Sprint risk shows in the range's last days: in the last two, the end day included. */
 const SPRINT_RISK_DAYS = 2;
+/** Waiting, stale and old draft: reasons that only say time has passed. */
+const SLOW_SEVERITY = ORDER.indexOf('WAITING_FOR_REVIEW') + 1;
+/** Untouched this long, a PR is unlikely to get action this sprint, whatever its reasons. */
+const QUIET_IDLE_MS = 30 * DAY;
 
 export function attention(row: PrRow, ctx: AttentionContext): Attention[] {
   const age = (ts: string): number => ctx.now - Date.parse(ts);
@@ -86,6 +90,16 @@ export function attention(row: PrRow, ctx: AttentionContext): Attention[] {
   return out.sort((a, b) => a.severity - b.severity);
 }
 
+/**
+ * Quiet rows sit behind a toggle in the Sweep and stay out of the tray count, so
+ * the main list stays short: the worst reason is a slow one, or nobody has
+ * touched the PR in a month.
+ */
+export function isQuiet(row: PrRow, reasons: Attention[], ctx: AttentionContext): boolean {
+  if (reasons.length === 0) return false;
+  return reasons[0].severity >= SLOW_SEVERITY || ctx.now - Date.parse(row.updatedAt) > QUIET_IDLE_MS;
+}
+
 /** How many open PRs aren't approved yet, in the range's last days; null otherwise. */
 export function sprintRisk(rows: PrRow[], ctx: AttentionContext): SprintRisk | null {
   if (!ctx.rangeEnd) return null;
@@ -101,7 +115,10 @@ export function sprintRisk(rows: PrRow[], ctx: AttentionContext): SprintRisk | n
 export function annotate(result: SweepResult, ctx: AttentionContext): SweepResult {
   return {
     ...result,
-    open: result.open.map((row) => ({ ...row, attention: attention(row, ctx) })),
+    open: result.open.map((row) => {
+      const reasons = attention(row, ctx);
+      return { ...row, attention: reasons, quiet: isQuiet(row, reasons, ctx) };
+    }),
     sprintRisk: sprintRisk(result.open, ctx),
   };
 }

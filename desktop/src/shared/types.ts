@@ -121,6 +121,8 @@ export interface PrRow {
   reviewCount: number | null;
   /** The attention engine's reasons, most severe first. Always empty on merged and queue rows. */
   attention: Attention[];
+  /** Flagged, but only for slow reasons or after a month untouched: shown behind a toggle. */
+  quiet: boolean;
 }
 
 /**
@@ -128,7 +130,7 @@ export interface PrRow {
  * incremental refreshes keep cached rows until each PR changes on GitHub, so a
  * snapshot from an older build must be swept afresh, never painted or patched.
  */
-export const SWEEP_SCHEMA = 4;
+export const SWEEP_SCHEMA = 5;
 
 export interface SweepResult {
   /** SWEEP_SCHEMA when this was written; absent in snapshots from before v0.11. */
