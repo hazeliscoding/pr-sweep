@@ -64,13 +64,20 @@ export class BoardStore {
       .sort(byNewest((r) => r.updatedAt));
   });
 
+  /** Snoozed Sweep rows by PR key. Per machine, never exported (see loadSnoozes). */
+  private readonly snoozes = signal<Record<string, Snooze>>(loadSnoozes());
+  /** Reveal snoozed rows in the Sweep, muted, so they can be unsnoozed. */
+  readonly showSnoozed = signal(false);
+
   /**
    * Open PRs the attention engine flagged, with the author chips and text
    * filter applied. Most severe first, then the longest-standing.
    */
-  readonly sweep = computed(() =>
+  private readonly flagged = computed(() =>
     this.applyFilters((this.result()?.open ?? []).filter((r) => r.attention.length > 0)).sort(bySeverityThenAge),
   );
+  readonly sweep = computed(() => this.flagged().filter((r) => !this.isSnoozed(r)));
+  readonly snoozed = computed(() => this.flagged().filter((r) => this.isSnoozed(r)));
 
   readonly sprintRisk = computed(() => this.result()?.sprintRisk ?? null);
 
@@ -317,6 +324,45 @@ export class BoardStore {
     void this.api.openExternal(row.url);
   }
 
+  /**
+   * A snooze holds while the PR is unchanged on GitHub, its worst reason is no
+   * worse than when it was snoozed, and it's still the same local day — so
+   * nothing stays hidden past the next standup.
+   */
+  isSnoozed(row: PrRow): boolean {
+    const s = this.snoozes()[this.snoozeKey(row)];
+    return (
+      !!s && s.day === localDay() && s.updatedAt === row.updatedAt && row.attention[0]?.severity >= s.severity
+    );
+  }
+
+  snooze(row: PrRow): void {
+    const entry: Snooze = { updatedAt: row.updatedAt, severity: row.attention[0].severity, day: localDay() };
+    this.saveSnoozes({ ...this.snoozes(), [this.snoozeKey(row)]: entry });
+  }
+
+  unsnooze(row: PrRow): void {
+    const next = { ...this.snoozes() };
+    delete next[this.snoozeKey(row)];
+    this.saveSnoozes(next);
+  }
+
+  private snoozeKey(row: PrRow): string {
+    return `${this.result()?.org ?? ''}/${row.repo}#${row.number}`;
+  }
+
+  /** Persist, dropping entries from earlier days: those can never hold again. */
+  private saveSnoozes(all: Record<string, Snooze>): void {
+    const today = localDay();
+    const kept = Object.fromEntries(Object.entries(all).filter(([, s]) => s.day === today));
+    this.snoozes.set(kept);
+    try {
+      localStorage.setItem(SNOOZE_KEY, JSON.stringify(kept));
+    } catch {
+      /* storage unavailable: snoozes last until the app restarts */
+    }
+  }
+
   /** A next-step link: the PR itself or one of its tabs (checks, files). */
   openUrl(url: string): void {
     void this.api.openExternal(url);
@@ -334,6 +380,33 @@ export class BoardStore {
       this.refreshTimer = setInterval(() => void this.refresh({ auto: true }), minutes * 60_000);
     }
   }
+}
+
+interface Snooze {
+  /** The PR's updatedAt when snoozed; any change on GitHub ends the snooze. */
+  updatedAt: string;
+  /** Its worst reason's severity when snoozed; a worse reason ends the snooze. */
+  severity: number;
+  /** The local day it was snoozed; the snooze ends with it. */
+  day: string;
+}
+
+const SNOOZE_KEY = 'prsweep-snoozes';
+
+function loadSnoozes(): Record<string, Snooze> {
+  try {
+    const all = JSON.parse(localStorage.getItem(SNOOZE_KEY) ?? '{}') as Record<string, Snooze>;
+    const today = localDay();
+    return Object.fromEntries(Object.entries(all).filter(([, s]) => s?.day === today));
+  } catch {
+    return {};
+  }
+}
+
+/** yyyy-mm-dd in local time: a snooze ends at local midnight, not UTC's. */
+function localDay(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function bySeverityThenAge(a: PrRow, b: PrRow): number {

@@ -95,8 +95,18 @@ interface BoardSection {
         @if (store.sprintRisk(); as risk) {
           <p class="sprint-risk">{{ sprintLine(risk) }}</p>
         }
+        @if (store.snoozed().length > 0) {
+          <button
+            class="toggle snooze-toggle"
+            [class.on]="store.showSnoozed()"
+            [attr.aria-pressed]="store.showSnoozed()"
+            (click)="store.showSnoozed.set(!store.showSnoozed())"
+          >
+            Show snoozed ({{ store.snoozed().length }})
+          </button>
+        }
       </div>
-      @if (store.sweep().length > 0) {
+      @if (sweepRows().length > 0) {
         <table>
           <thead>
             <tr>
@@ -110,8 +120,8 @@ interface BoardSection {
           </thead>
           <tbody>
             <!-- Rows aren't one big button here: they hold buttons of their own. -->
-            @for (pr of store.sweep(); track pr.url) {
-              <tr>
+            @for (pr of sweepRows(); track pr.url) {
+              <tr [class.snoozed]="store.isSnoozed(pr)">
                 <td class="pr-ref">{{ pr.repo }}#{{ pr.number }}</td>
                 <td class="ci-col">
                   @if (pr.ci; as ci) {
@@ -148,13 +158,36 @@ interface BoardSection {
                   >
                     {{ pr.attention[0].action }}
                   </button>
+                  @if (store.isSnoozed(pr)) {
+                    <button
+                      class="snooze-btn"
+                      [attr.aria-label]="'Unsnooze ' + pr.repo + '#' + pr.number"
+                      (click)="store.unsnooze(pr)"
+                    >
+                      Unsnooze
+                    </button>
+                  } @else {
+                    <button
+                      class="snooze-btn"
+                      title="Hide until it changes, gets worse, or tomorrow"
+                      [attr.aria-label]="'Snooze ' + pr.repo + '#' + pr.number"
+                      (click)="store.snooze(pr)"
+                    >
+                      Snooze
+                    </button>
+                  }
                 </td>
               </tr>
             }
           </tbody>
         </table>
       } @else {
-        <p class="empty-note">Nothing needs attention.</p>
+        <p class="empty-note">
+          Nothing needs attention.
+          @if (store.snoozed().length > 0) {
+            ({{ store.snoozed().length }} snoozed)
+          }
+        </p>
       }
     </section>
 
@@ -275,6 +308,11 @@ export class BoardComponent {
       emptyNote: 'Nothing merged in this range yet.',
     },
   ]);
+
+  /** Active Sweep rows, then the snoozed ones when they're revealed. */
+  readonly sweepRows = computed(() =>
+    this.store.showSnoozed() ? [...this.store.sweep(), ...this.store.snoozed()] : this.store.sweep(),
+  );
 
   authors(): string[] {
     return this.store.activeProfile()?.authors ?? [];

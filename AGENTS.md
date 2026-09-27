@@ -54,6 +54,8 @@ organization. It ships for Windows and Linux.
   default there, must survive profile export/import, and needs a case in
   `config.service.test.mjs`.
 - Profile export never includes tokens or machine-level preferences.
+- Sweep snoozes live in the renderer's `localStorage` (`prsweep-snoozes`), per machine, next to
+  the theme choice. They're never exported, and entries from earlier days are pruned.
 - Tokens are encrypted at rest with Electron `safeStorage` in `token.bin`. Never log a full
   token.
 - Don't rename the userData folder (`app.setName('pr-sweep')`) or the executable

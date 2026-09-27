@@ -231,7 +231,9 @@ the `release/v0.11` branch.
       and its age, plus chips for the others), author, next step and snooze. Rows aren't clickable
       as a whole. Author chips and the text filter apply. When the range ends within 2 days, the
       header says how many open PRs aren't approved yet. Empty state: "Nothing needs attention."
-- [ ] Snooze per row, plus "Show snoozed" to reveal and unsnooze.
+- [x] Snooze per row, plus "Show snoozed" to reveal and unsnooze. *Checked through the built
+      app: hiding, surviving a relaunch, reveal and unsnooze, and each way a snooze ends (the PR
+      changes, a worse reason, a new day).*
 - [ ] Tray: a "N need attention (team)" menu line and tooltip fallback, with `attentionCount`
       added to `syncTray`. Settings: the stale-threshold help text mentions the Sweep.
 - [ ] `chore(release): v0.11.0`, then mark the pull request ready and merge it. Once it ships, update an installed
