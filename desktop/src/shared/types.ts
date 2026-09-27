@@ -181,10 +181,10 @@ export interface PrSweepApi {
   latestSweep(): Promise<SweepResult | null>;
   /**
    * Push the latest sweep's tray-relevant slices: the review queue (counts +
-   * review-request toasts) and the viewer's own open PRs (approval / changes-
-   * requested / CI-failure toasts).
+   * review-request toasts), the viewer's own open PRs (approval / changes-
+   * requested / CI-failure toasts), and the counts behind the menu lines.
    */
-  syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number }): Promise<void>;
+  syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number; attentionCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
   /** Subscribe to auto-update state pushes (download progress, ready-to-restart). */
   onUpdateState(cb: (state: UpdateState | null) => void): void;

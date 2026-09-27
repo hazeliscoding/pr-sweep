@@ -378,6 +378,7 @@ tr.snoozed td:not(.next) { opacity: 0.55; }
 .settings h2 { font-size: var(--fs-h3); }
 .field { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
 .field input { max-width: 260px; }
+.field .hint { font-size: var(--fs-caption); color: var(--color-text-muted); }
 .check { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); font-size: var(--fs-dense); color: var(--color-text-secondary); }
 .check input { width: auto; }
 .tag-list { list-style: none; display: flex; gap: var(--space-3); flex-wrap: wrap; padding: 0; margin: var(--space-4) 0; }

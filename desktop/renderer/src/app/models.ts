@@ -136,7 +136,7 @@ export interface PrSweepApi {
    */
   fetchPrs(range: DateRange, mode?: 'full' | 'auto'): Promise<SweepResult>;
   latestSweep(): Promise<SweepResult | null>;
-  syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number }): Promise<void>;
+  syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number; attentionCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
   onUpdateState(cb: (state: UpdateState | null) => void): void;
   installUpdate(): Promise<void>;

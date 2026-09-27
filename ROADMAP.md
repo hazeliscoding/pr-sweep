@@ -234,7 +234,7 @@ the `release/v0.11` branch.
 - [x] Snooze per row, plus "Show snoozed" to reveal and unsnooze. *Checked through the built
       app: hiding, surviving a relaunch, reveal and unsnooze, and each way a snooze ends (the PR
       changes, a worse reason, a new day).*
-- [ ] Tray: a "N need attention (team)" menu line and tooltip fallback, with `attentionCount`
+- [x] Tray: a "N need attention (team)" menu line and tooltip fallback, with `attentionCount`
       added to `syncTray`. Settings: the stale-threshold help text mentions the Sweep.
 - [ ] `chore(release): v0.11.0`, then mark the pull request ready and merge it. Once it ships, update an installed
       v0.10.4 through the auto-updater and check that the first refresh fills every row without a

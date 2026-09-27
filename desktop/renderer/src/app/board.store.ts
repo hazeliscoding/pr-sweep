@@ -150,14 +150,7 @@ export class BoardStore {
       const result = await this.api.fetchPrs(range, opts.auto ? 'auto' : 'full');
       this.result.set(result);
       this.error.set(null);
-      // Hand the tray its slices: the queue (counts + review-request toasts)
-      // and my own open PRs (approval / changes-requested / CI-failure toasts).
-      // Both use the raw result, not the filtered view, so background toasts
-      // don't depend on whatever author/text filter is active.
-      const needsReview = result.open.filter((r) => r.bucket === 'needs-review').length;
-      const login = this.auth()?.login;
-      const mine = login ? result.open.filter((r) => r.author === login) : [];
-      void this.api.syncTray({ queue: result.queue, mine, needsReviewCount: needsReview });
+      this.syncTray(result);
     } catch (e) {
       // A background refresh failing (laptop offline) shouldn't blank a board
       // that's already showing data — surface quietly only for manual actions.
@@ -356,11 +349,30 @@ export class BoardStore {
     const today = localDay();
     const kept = Object.fromEntries(Object.entries(all).filter(([, s]) => s.day === today));
     this.snoozes.set(kept);
+    const result = this.result();
+    if (result) this.syncTray(result); // the tray's Sweep count leaves snoozed rows out
     try {
       localStorage.setItem(SNOOZE_KEY, JSON.stringify(kept));
     } catch {
       /* storage unavailable: snoozes last until the app restarts */
     }
+  }
+
+  /**
+   * Hand the tray its slices: the queue (counts + review-request toasts), my
+   * own open PRs (approval / changes-requested / CI-failure toasts) and the
+   * counts behind its menu. All from the raw result, not the filtered view, so
+   * background toasts and counts don't depend on whatever author/text filter is
+   * active. Only snoozes, the user saying "not now", lower the Sweep count.
+   */
+  private syncTray(result: SweepResult): void {
+    const login = this.auth()?.login;
+    void this.api.syncTray({
+      queue: result.queue,
+      mine: login ? result.open.filter((r) => r.author === login) : [],
+      needsReviewCount: result.open.filter((r) => r.bucket === 'needs-review').length,
+      attentionCount: result.open.filter((r) => r.attention.length > 0 && !this.isSnoozed(r)).length,
+    });
   }
 
   /** A next-step link: the PR itself or one of its tabs (checks, files). */
