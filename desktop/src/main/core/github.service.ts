@@ -309,6 +309,7 @@ export class GithubService {
       merged: merged.map((n) => toRow(n, 'merged')),
       // Queue rows resolve "when was *my* review requested" from the timeline.
       queue: queue.map((n) => toRow(n, bucketOf(n), login)),
+      sprintRisk: null,
     };
   }
 
@@ -367,6 +368,7 @@ export class GithubService {
       open: patch(base.open, open),
       merged: patch(base.merged, merged.map((n) => toRow(n, 'merged'))),
       queue: patch(base.queue, queue.map((n) => toRow(n, bucketOf(n), login))),
+      sprintRisk: null,
     };
   }
 
@@ -632,6 +634,8 @@ function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string, details?: D
     approvedAt: details?.approvedAt ?? null,
     changesRequestedAt: details?.changesRequestedAt ?? null,
     reviewCount: details?.reviewCount ?? null,
+    // Judged after the sweep by the attention engine (see annotate).
+    attention: [],
   };
 }
 

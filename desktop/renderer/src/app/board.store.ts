@@ -150,6 +150,16 @@ export class BoardStore {
     }
   }
 
+  /**
+   * The stale threshold feeds the attention engine, which runs in main after a
+   * sweep. An auto refresh patches the cached sweep (usually one request) and
+   * re-judges every row with the new threshold.
+   */
+  setStaleDays(days: number): void {
+    this.patchProfile({ staleDays: days });
+    void this.refresh({ auto: true });
+  }
+
   /** Drafts visibility is part of the search queries, so toggling refetches. */
   toggleDrafts(): void {
     this.patchProfile({ includeDrafts: !this.activeProfile()?.includeDrafts });

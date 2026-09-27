@@ -8,6 +8,7 @@
  */
 import { dialog, ipcMain, shell } from 'electron';
 import { readFileSync, writeFileSync } from 'fs';
+import { annotate } from './core/attention';
 import { activeProfile, ConfigService } from './core/config.service';
 import { GithubService, SweepStats } from './core/github.service';
 import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
@@ -60,7 +61,13 @@ export function registerIpc(services: Services): void {
     // refreshes always resweep in full so the user has a recovery lever.
     const base = mode === 'auto' ? services.snapshots.get() : null;
     try {
-      const result = await services.github.sweep(services.config.get(), range, base);
+      const config = services.config.get();
+      // Every sweep re-judges every open row, cached ones included.
+      const result = annotate(await services.github.sweep(config, range, base), {
+        now: Date.now(),
+        staleDays: activeProfile(config).staleDays,
+        rangeEnd: range.end,
+      });
       services.snapshots.set(result);
       return result;
     } finally {

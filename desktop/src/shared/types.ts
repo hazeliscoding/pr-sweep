@@ -58,6 +58,36 @@ export type SweepConfigPatch = Partial<SweepConfig>;
 
 export type ReviewBucket = 'needs-review' | 'changes-requested' | 'approved' | 'merged';
 
+export type AttentionReason =
+  | 'CI_FAILING'
+  | 'MERGE_CONFLICT'
+  | 'CHANGES_NOT_ADDRESSED'
+  | 'NEEDS_RE_REVIEW'
+  | 'APPROVED_NOT_MERGED'
+  | 'NO_REVIEWERS'
+  | 'WAITING_FOR_REVIEW'
+  | 'STALE'
+  | 'DRAFT_TOO_LONG';
+
+/** Why an open PR needs a human, from the attention engine (core/attention.ts). */
+export interface Attention {
+  reason: AttentionReason;
+  /** 1 is the most severe; a row's attention list is sorted by it. */
+  severity: number;
+  /** When the reason started to hold, as far as GitHub says. Null for merge conflicts. */
+  since: string | null;
+  /** The next step's label, and the page it opens. */
+  action: string;
+  href: string;
+}
+
+/** Open PRs not yet approved, in the range's last days. */
+export interface SprintRisk {
+  /** 0 = the range ends today. */
+  endsInDays: number;
+  notApproved: number;
+}
+
 export interface PrRow {
   repo: string;
   number: number;
@@ -89,6 +119,8 @@ export interface PrRow {
   approvedAt: string | null;
   changesRequestedAt: string | null;
   reviewCount: number | null;
+  /** The attention engine's reasons, most severe first. Always empty on merged and queue rows. */
+  attention: Attention[];
 }
 
 /**
@@ -96,7 +128,7 @@ export interface PrRow {
  * incremental refreshes keep cached rows until each PR changes on GitHub, so a
  * snapshot from an older build must be swept afresh, never painted or patched.
  */
-export const SWEEP_SCHEMA = 3;
+export const SWEEP_SCHEMA = 4;
 
 export interface SweepResult {
   /** SWEEP_SCHEMA when this was written; absent in snapshots from before v0.11. */
@@ -109,6 +141,7 @@ export interface SweepResult {
   merged: PrRow[];
   /** Open PRs org-wide with the signed-in user's review requested — any author, any age. */
   queue: PrRow[];
+  sprintRisk: SprintRisk | null;
 }
 
 /** Auto-update progress pushed from main; null = nothing in flight. */

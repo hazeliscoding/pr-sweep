@@ -40,6 +40,32 @@ export type SweepConfigPatch = Partial<SweepConfig>;
 
 export type ReviewBucket = 'needs-review' | 'changes-requested' | 'approved' | 'merged';
 
+export type AttentionReason =
+  | 'CI_FAILING'
+  | 'MERGE_CONFLICT'
+  | 'CHANGES_NOT_ADDRESSED'
+  | 'NEEDS_RE_REVIEW'
+  | 'APPROVED_NOT_MERGED'
+  | 'NO_REVIEWERS'
+  | 'WAITING_FOR_REVIEW'
+  | 'STALE'
+  | 'DRAFT_TOO_LONG';
+
+export interface Attention {
+  reason: AttentionReason;
+  /** 1 is the most severe; a row's attention list is sorted by it. */
+  severity: number;
+  since: string | null;
+  action: string;
+  href: string;
+}
+
+export interface SprintRisk {
+  /** 0 = the range ends today. */
+  endsInDays: number;
+  notApproved: number;
+}
+
 export interface PrRow {
   repo: string;
   number: number;
@@ -66,6 +92,7 @@ export interface PrRow {
   approvedAt: string | null;
   changesRequestedAt: string | null;
   reviewCount: number | null;
+  attention: Attention[];
 }
 
 export interface SweepResult {
@@ -76,6 +103,7 @@ export interface SweepResult {
   open: PrRow[];
   merged: PrRow[];
   queue: PrRow[];
+  sprintRisk: SprintRisk | null;
 }
 
 /** Auto-update progress pushed from main; null = nothing in flight. */

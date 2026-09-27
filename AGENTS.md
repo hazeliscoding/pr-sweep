@@ -62,8 +62,10 @@ organization. It ships for Windows and Linux.
 
 ## Product rules
 
-- The attention engine is the single definition of "needs attention". The Sweep section, the
-  sprint summary and the standup all read from it.
+- The attention engine (`desktop/src/main/core/attention.ts`) is the single definition of
+  "needs attention". `prs:fetch` runs it over every open row after every sweep, cached rows
+  included. The Sweep section, the tray line and the sprint summary read its output; the
+  renderer never decides on its own whether a PR needs attention.
 - Workflow health, not human performance: no per-person counts, leaderboards or review stats.
 - No AI features before 1.0.
 - Windows and Linux only. macOS is not planned.

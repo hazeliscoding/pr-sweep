@@ -205,9 +205,12 @@ the `release/v0.11` branch.
   need them and found 6 merge conflicts. The whole-org view still completes in 5 of 5 runs, but
   at 170 s median: its carried-over PRs add search requests, and with them more rate-limit
   waits.*
-- [ ] Attention engine: `desktop/src/main/core/attention.ts`, a pure function with a test for each
+- [x] Attention engine: `desktop/src/main/core/attention.ts`, a pure function with a test for each
       reason at its boundary. `prs:fetch` runs it over the open rows after every sweep, full or
-      incremental. It also returns `sprintRisk`. Editing `staleDays` triggers a refresh.
+      incremental. It also returns `sprintRisk`. Editing `staleDays` triggers a refresh (an
+      incremental one, so it's usually a single request). Schema 4. *On a live electron team
+      sweep, with drafts shown, 31 of 39 open PRs got a reason: 6 CI failures, 4 conflicts,
+      6 old drafts, and many long-lived PRs that are also stale.*
 
 | # | Reason | Fires when | `since` | Next step |
 |---|---|---|---|---|
