@@ -18,9 +18,9 @@ own dashboard shows what's waiting on *you*, not on the team. PR Sweep puts the 
 on one board, sorted by GitHub's own review state, so nobody maintains labels or a project board.
 Set the org, the team and the sprint's dates once. It refreshes every five minutes from the tray.
 
-> **Status:** v0.10, in daily use. Windows and Linux builds are on [Releases](../../releases) and
-> update themselves. Next is a Sweep list that says why each stuck PR needs attention and what to
-> do about it. See [ROADMAP.md](ROADMAP.md).
+> **Status:** v0.11, in daily use. Windows and Linux builds are on [Releases](../../releases) and
+> update themselves. Next is a sprint summary with a standup you can paste into chat. See
+> [ROADMAP.md](ROADMAP.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/board-dark.png">
@@ -60,14 +60,22 @@ Grab a build from [Releases](../../releases).
 
 ## What it does
 
-- **Sorts** every PR your team has open or merged in the date range into Needs review, Changes
-  requested, Approved and Merged, from GitHub's `reviewDecision`. There are no labels to keep up.
+- **Sweeps** the team's open PRs for the ones that need a human: failing CI, merge conflicts,
+  feedback nobody has addressed, pushes waiting on a re-review, approvals nobody merged, and PRs
+  nobody was asked to review. Each row says how long it has been that way, with a one-click next
+  step. PRs that are only waiting or stale, or untouched for a month, sit behind a toggle, and
+  you can snooze a row until it changes or tomorrow. In a sprint's last two days, it also says how
+  many open PRs aren't approved yet.
+- **Sorts** every open PR your team has, plus what merged in the date range, into Needs review,
+  Changes requested, Approved and Merged, from GitHub's `reviewDecision`. There are no labels to
+  keep up.
 - **Queues** the open PRs anywhere in the org that are waiting on *your* review, with how long
   each has waited.
 - **Flags** failing CI on every open PR, and PRs untouched for longer than a threshold you set.
   Drafts stay hidden unless you show them.
 - **Notifies** from the tray when a PR lands in your queue, or when one of yours is approved, gets
-  changes requested or starts failing CI. Closing the window keeps it watching.
+  changes requested or starts failing CI. The tray menu also counts what the Sweep has for the
+  team. Closing the window keeps it watching.
 - **Shares** a setup. Save org, team and date-range profiles, then export them as JSON for
   teammates to import. Tokens are never exported.
 - **Opens instantly.** The last sweep is cached on disk, so the board appears at once and
@@ -113,6 +121,12 @@ GitHub search has quirks, all checked against the live API. PR Sweep works aroun
   reliable check is whether the org's repositories are visible at all.
 - Search returns at most 1000 results per query, however you paginate. When a busy range would
   pass that, PR Sweep splits the date window in half and searches the halves.
+- Paging through one long search is slow, so merged PRs are searched a week at a time, four
+  weeks in parallel.
+- Heavy searches can time out, as a 502 or as a 200 with a cut-off body. Those pages are re-sent
+  at half the size, down to 25 rows, instead of being repeated as-is.
+- Mergeability and review times are too costly to ask for on every searched PR. They come from
+  one follow-up query, only for the PRs whose attention depends on them.
 - Auto-refreshes ask only for PRs updated since the last sweep and patch the cached result. A
   manual Refresh always sweeps in full.
 

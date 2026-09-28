@@ -9,6 +9,7 @@
 import { app, Menu, nativeImage, Notification, shell, Tray } from 'electron';
 import * as path from 'path';
 import { ConfigService } from './core/config.service';
+import { TrayCounts, trayMenuLines, trayTooltip } from './core/tray.text';
 import { PrRow } from '../shared/types';
 
 export interface TraySync {
@@ -16,6 +17,8 @@ export interface TraySync {
   /** The signed-in user's own open PRs — the author-side notification source. */
   mine: PrRow[];
   needsReviewCount: number;
+  /** Sweep rows the user hasn't snoozed. The badge ignores it: those are team-wide. */
+  attentionCount: number;
 }
 
 const key = (pr: PrRow): string => `${pr.repo}#${pr.number}`;
@@ -31,7 +34,7 @@ export class TrayController {
   private mineKnown: Map<string, { bucket: PrRow['bucket']; ci: PrRow['ci'] }> | null = null;
   private updateReady: { version: string; install: () => void } | null = null;
   /** Last synced counts so a menu rebuild outside sync() keeps them current. */
-  private counts = { queue: 0, needsReview: 0 };
+  private counts: TrayCounts = { queue: 0, attention: 0, needsReview: 0 };
 
   constructor(
     private readonly config: ConfigService,
@@ -48,10 +51,10 @@ export class TrayController {
     this.tray = new Tray(this.iconIdle.resize({ width: 16, height: 16 }));
     this.tray.setToolTip('PR Sweep');
     this.tray.on('click', this.showWindow);
-    this.render(0, 0);
+    this.render(this.counts);
   }
 
-  sync({ queue, mine, needsReviewCount }: TraySync): void {
+  sync({ queue, mine, needsReviewCount, attentionCount }: TraySync): void {
     const toastable = this.config.get().notifications && Notification.isSupported();
     const keys = new Set(queue.map(key));
     if (this.known && toastable) {
@@ -78,7 +81,7 @@ export class TrayController {
     }
     this.mineKnown = new Map(rows.map((pr) => [key(pr), { bucket: pr.bucket, ci: pr.ci }]));
 
-    this.render(queue.length, needsReviewCount);
+    this.render({ queue: queue.length, attention: attentionCount ?? 0, needsReview: needsReviewCount });
   }
 
   private notify(title: string, pr: PrRow): void {
@@ -97,22 +100,17 @@ export class TrayController {
       the only surface a close-to-tray user reliably sees. */
   setUpdateReady(version: string, install: () => void): void {
     this.updateReady = { version, install };
-    this.render(this.counts.queue, this.counts.needsReview);
+    this.render(this.counts);
   }
 
-  private render(queueCount: number, needsReviewCount: number): void {
+  private render(counts: TrayCounts): void {
     if (!this.tray) return;
-    this.counts = { queue: queueCount, needsReview: needsReviewCount };
+    this.counts = counts;
+    // The badge stays yours: it lights up for your review queue only.
     this.tray.setImage(
-      (queueCount > 0 ? this.iconAlert : this.iconIdle).resize({ width: 16, height: 16 }),
+      (counts.queue > 0 ? this.iconAlert : this.iconIdle).resize({ width: 16, height: 16 }),
     );
-    const line =
-      queueCount > 0
-        ? `${queueCount} awaiting your review`
-        : needsReviewCount > 0
-          ? `${needsReviewCount} need review`
-          : 'nothing waiting';
-    this.tray.setToolTip(`PR Sweep — ${line}`);
+    this.tray.setToolTip(trayTooltip(counts));
     const update: Electron.MenuItemConstructorOptions[] = this.updateReady
       ? [
           { label: `Restart to update (v${this.updateReady.version})`, click: this.updateReady.install },
@@ -122,8 +120,7 @@ export class TrayController {
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
         ...update,
-        { label: `${queueCount} awaiting your review`, enabled: false },
-        { label: `${needsReviewCount} need review (team)`, enabled: false },
+        ...trayMenuLines(counts).map((label) => ({ label, enabled: false })),
         { type: 'separator' },
         { label: 'Open PR Sweep', click: this.showWindow },
         { label: 'Quit', click: this.quit },

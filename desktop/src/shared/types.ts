@@ -58,6 +58,36 @@ export type SweepConfigPatch = Partial<SweepConfig>;
 
 export type ReviewBucket = 'needs-review' | 'changes-requested' | 'approved' | 'merged';
 
+export type AttentionReason =
+  | 'CI_FAILING'
+  | 'MERGE_CONFLICT'
+  | 'CHANGES_NOT_ADDRESSED'
+  | 'NEEDS_RE_REVIEW'
+  | 'APPROVED_NOT_MERGED'
+  | 'NO_REVIEWERS'
+  | 'WAITING_FOR_REVIEW'
+  | 'STALE'
+  | 'DRAFT_TOO_LONG';
+
+/** Why an open PR needs a human, from the attention engine (core/attention.ts). */
+export interface Attention {
+  reason: AttentionReason;
+  /** 1 is the most severe; a row's attention list is sorted by it. */
+  severity: number;
+  /** When the reason started to hold, as far as GitHub says. Null for merge conflicts. */
+  since: string | null;
+  /** The next step's label, and the page it opens. */
+  action: string;
+  href: string;
+}
+
+/** Open PRs not yet approved, in the range's last days. */
+export interface SprintRisk {
+  /** 0 = the range ends today. */
+  endsInDays: number;
+  notApproved: number;
+}
+
 export interface PrRow {
   repo: string;
   number: number;
@@ -73,15 +103,38 @@ export interface PrRow {
   comments: number;
   additions: number;
   deletions: number;
-  /** Logins with an outstanding review request. */
+  /** Logins (and org/team slugs) with an outstanding review request. */
   requestedReviewers: string[];
   /** Latest commit's check rollup as a traffic light; null = no checks configured. */
   ci: 'success' | 'failure' | 'pending' | null;
   /** When the signed-in user's review was requested — set on queue rows, null elsewhere. */
   reviewRequestedAt: string | null;
+  /** Review requests to people and teams (requestedReviewers lists at most 10). */
+  requestCount: number;
+  /** When the latest commit was made; null on merged rows. */
+  lastCommitAt: string | null;
+  // Fetched only for approved, changes-requested and unrequested needs-review
+  // rows (see needsDetails in github.service.ts); null elsewhere.
+  mergeable: 'mergeable' | 'conflicting' | 'unknown' | null;
+  approvedAt: string | null;
+  changesRequestedAt: string | null;
+  reviewCount: number | null;
+  /** The attention engine's reasons, most severe first. Always empty on merged and queue rows. */
+  attention: Attention[];
+  /** Flagged, but only for slow reasons or after a month untouched: shown behind a toggle. */
+  quiet: boolean;
 }
 
+/**
+ * Version of the SweepResult / PrRow shape. Bump it whenever either changes:
+ * incremental refreshes keep cached rows until each PR changes on GitHub, so a
+ * snapshot from an older build must be swept afresh, never painted or patched.
+ */
+export const SWEEP_SCHEMA = 5;
+
 export interface SweepResult {
+  /** SWEEP_SCHEMA when this was written; absent in snapshots from before v0.11. */
+  schema: number;
   fetchedAt: string;
   /** Org the sweep ran against — lets a cached snapshot prove it's still relevant. */
   org: string;
@@ -90,6 +143,7 @@ export interface SweepResult {
   merged: PrRow[];
   /** Open PRs org-wide with the signed-in user's review requested — any author, any age. */
   queue: PrRow[];
+  sprintRisk: SprintRisk | null;
 }
 
 /** Auto-update progress pushed from main; null = nothing in flight. */
@@ -129,10 +183,10 @@ export interface PrSweepApi {
   latestSweep(): Promise<SweepResult | null>;
   /**
    * Push the latest sweep's tray-relevant slices: the review queue (counts +
-   * review-request toasts) and the viewer's own open PRs (approval / changes-
-   * requested / CI-failure toasts).
+   * review-request toasts), the viewer's own open PRs (approval / changes-
+   * requested / CI-failure toasts), and the counts behind the menu lines.
    */
-  syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number }): Promise<void>;
+  syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number; attentionCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
   /** Subscribe to auto-update state pushes (download progress, ready-to-restart). */
   onUpdateState(cb: (state: UpdateState | null) => void): void;

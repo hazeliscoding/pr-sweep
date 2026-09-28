@@ -16,21 +16,44 @@
  * Big-org behavior:
  *  - date-windowed queries split themselves when they'd hit the 1000-result cap,
  *    so a busy quarter still sweeps completely instead of silently truncating.
+ *  - open PRs come from two searches side by side: updated since the range
+ *    start, and carried over from before it. Mergeability and review times
+ *    come after, only for the rows that need them (DETAIL_QUERY).
+ *  - the full sweep's merged list runs one week per search, a few in flight,
+ *    instead of paging through the whole range one request at a time.
+ *  - a search page that times out (502/504, or a 200 with a cut-off body) is
+ *    re-sent at half the size, down to 25, before the usual retries —
+ *    whole-org searches on big orgs time out at 100 every time.
  *  - rate limits (primary and secondary) and transient 5xx are retried with the
  *    server-stated wait when GitHub provides one, exponential backoff otherwise.
  *  - auto-refreshes can run incrementally against the previous sweep: one cheap
  *    org-wide "what changed since last time" probe plus per-bucket deltas,
  *    instead of re-fetching every PR in the range (see sweep()'s `base` param).
  */
-import { DateRange, PrRow, ReviewBucket, SweepConfig, SweepResult } from '../../shared/types';
+import { DateRange, PrRow, ReviewBucket, SWEEP_SCHEMA, SweepConfig, SweepResult } from '../../shared/types';
 import { activeProfile } from './config.service';
 
 const GRAPHQL_URL = 'https://api.github.com/graphql';
 // GraphQL search's max page size — fewer round trips is the single biggest
 // lever on sweep latency for busy ranges.
 const PAGE_SIZE = 100;
+/**
+ * A search page GitHub can't answer in time (502/504) is re-sent at half the
+ * size, down to this. Whole-org searches on big orgs time out at 100 every time,
+ * and repeating the same request only adds the backoff.
+ */
+const MIN_PAGE_SIZE = 25;
 /** GitHub search returns at most this many results per query, full stop. */
 const SEARCH_CAP = 1000;
+/**
+ * The full sweep's merged search runs one week per query, a few at a time. A
+ * single query over the range pages through it one request after another, and
+ * that made up most of a full sweep (28.9 s on a 5-author electron team in
+ * v0.10.4). The cap keeps concurrent searches clear of GitHub's secondary rate
+ * limits.
+ */
+const MERGED_WINDOW_DAYS = 7;
+const MERGED_CONCURRENCY = 4;
 const MAX_RETRIES = 3;
 /** Never sleep longer than this on a rate limit — surface the error instead. */
 const MAX_RETRY_WAIT_MS = 120_000;
@@ -45,17 +68,18 @@ const INCREMENTAL_MAX_AGE_MS = 60 * 60_000;
 // merged rows show neither, open rows show the CI dot, queue rows also show
 // the review-wait badge. The incremental probe needs only keys → bare.
 const NODE_FIELDS = `
-          number title url isDraft createdAt updatedAt mergedAt
+          id number title url isDraft createdAt updatedAt mergedAt
           reviewDecision totalCommentsCount additions deletions
           repository { name }
           author { login avatarUrl }
           reviewRequests(first: 10) {
-            nodes { requestedReviewer { ... on User { login } } }
+            totalCount
+            nodes { requestedReviewer { ... on User { login } ... on Team { combinedSlug } } }
           }`;
 
 const CI_FIELD = `
           commits(last: 1) {
-            nodes { commit { statusCheckRollup { state } } }
+            nodes { commit { committedDate statusCheckRollup { state } } }
           }`;
 
 const TIMELINE_FIELD = `
@@ -70,8 +94,8 @@ const TIMELINE_FIELD = `
 
 function buildSearchQuery(extras: { ci?: boolean; timeline?: boolean }): string {
   return `
-  query ($q: String!, $after: String) {
-    search(query: $q, type: ISSUE_ADVANCED, first: ${PAGE_SIZE}, after: $after) {
+  query ($q: String!, $after: String, $first: Int!) {
+    search(query: $q, type: ISSUE_ADVANCED, first: $first, after: $after) {
       issueCount
       pageInfo { hasNextPage endCursor }
       nodes {
@@ -87,7 +111,28 @@ const QUERY_BARE = buildSearchQuery({});
 const QUERY_OPEN = buildSearchQuery({ ci: true });
 const QUERY_QUEUE = buildSearchQuery({ ci: true, timeline: true });
 
+/**
+ * Mergeability and review times, fetched after the searches only for the rows
+ * whose attention depends on them (see needsDetails). On every open row they'd
+ * cost ~20% of the open search's time; mergeable is the expensive one.
+ */
+const DETAIL_QUERY = `
+  query ($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on PullRequest {
+        id mergeable
+        latestReviews(first: 10) { totalCount nodes { state submittedAt } }
+      }
+    }
+  }
+`;
+/** nodes(ids:) takes at most 100 ids. */
+const DETAIL_BATCH = 100;
+/** Carried-over PRs are split by creation date from here: nothing on GitHub is older. */
+const CARRIED_FROM = '2008-01-01';
+
 interface SearchNode {
+  id: string;
   number: number;
   title: string;
   url: string;
@@ -101,10 +146,14 @@ interface SearchNode {
   deletions: number;
   repository: { name: string };
   author: { login: string; avatarUrl: string } | null;
-  reviewRequests: { nodes: Array<{ requestedReviewer: { login?: string } | null }> };
+  reviewRequests: {
+    totalCount?: number;
+    nodes: Array<{ requestedReviewer: { login?: string; combinedSlug?: string } | null }>;
+  };
   commits?: {
     nodes: Array<{
       commit: {
+        committedDate?: string;
         statusCheckRollup: { state: 'SUCCESS' | 'FAILURE' | 'ERROR' | 'PENDING' | 'EXPECTED' } | null;
       };
     }>;
@@ -114,12 +163,30 @@ interface SearchNode {
   };
 }
 
+interface DetailNode {
+  id: string;
+  mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN';
+  latestReviews: { totalCount: number; nodes: Array<{ state: string; submittedAt: string | null }> };
+}
+
+type Details = Pick<PrRow, 'mergeable' | 'approvedAt' | 'changesRequestedAt' | 'reviewCount'>;
+
 interface SearchPage {
   search: {
     issueCount: number;
     pageInfo: { hasNextPage: boolean; endCursor: string | null };
     nodes: SearchNode[];
   };
+}
+
+/** What the last sweep cost — logged under PRSWEEP_DEBUG and read by e2e/bench-sweep.mjs. */
+export interface SweepStats {
+  mode: 'full' | 'incremental';
+  ok: boolean;
+  ms: number;
+  /** HTTP round trips, re-sends included. */
+  requests: number;
+  retries: number;
 }
 
 export class GithubService {
@@ -166,6 +233,9 @@ export class GithubService {
     }
   }
 
+  lastSweep: SweepStats | null = null;
+  private counters = { mode: 'full' as SweepStats['mode'], requests: 0, retries: 0 };
+
   /**
    * Runs the sweep. When `base` (the previous sweep) is fresh and matches the
    * org + range, only PRs updated since it are fetched and patched in — for a
@@ -174,6 +244,19 @@ export class GithubService {
    * more changes than search can enumerate) falls back to a full sweep.
    */
   async sweep(config: SweepConfig, range: DateRange, base: SweepResult | null = null): Promise<SweepResult> {
+    const started = Date.now();
+    this.counters = { mode: 'full', requests: 0, retries: 0 };
+    let ok = false;
+    try {
+      const result = await this.sweepOnce(config, range, base);
+      ok = true;
+      return result;
+    } finally {
+      this.lastSweep = { ...this.counters, ok, ms: Date.now() - started };
+    }
+  }
+
+  private async sweepOnce(config: SweepConfig, range: DateRange, base: SweepResult | null): Promise<SweepResult> {
     const profile = activeProfile(config);
     if (!profile.org) throw new Error('No GitHub organization configured — set one in Settings.');
     const authors = profile.authors.length
@@ -191,29 +274,47 @@ export class GithubService {
 
     if (this.canPatch(base, profile.org, range)) {
       const patched = await this.incrementalSweep(base, parts, range, login);
-      if (patched) return patched;
+      if (patched) {
+        this.counters.mode = 'incremental';
+        return patched;
+      }
     }
 
     const today = new Date().toISOString().slice(0, 10);
     const end = range.end ?? today;
-    const [open, merged, queue] = await Promise.all([
-      this.searchWindowed((a, b) => `${parts.open} updated:${a}..${b}`, range.start, end, QUERY_OPEN),
-      this.searchWindowed((a, b) => `${parts.merged} merged:${a}..${b}`, range.start, end, QUERY_BARE),
+    // Open means open now, whatever the range's end: everything updated since
+    // the range start, plus PRs carried over from before it. Two searches, so
+    // they run side by side. Details follow as soon as both land, while the
+    // merged weeks are still in flight.
+    const open = Promise.all([
+      this.searchWindowed((a, b) => `${parts.open} updated:${a}..${b}`, range.start, today, QUERY_OPEN),
+      this.searchWindowed(
+        (a, b) => `${parts.open} updated:<${range.start} created:${a}..${b}`,
+        CARRIED_FROM,
+        today,
+        QUERY_OPEN,
+      ),
+    ]).then(([recent, carried]) => this.openRows(uniqueNodes([...recent, ...carried])));
+    const [openRows, merged, queue] = await Promise.all([
+      open,
+      this.searchMerged(parts.merged, range.start, end),
       this.searchAll(parts.queue, QUERY_QUEUE).then((r) => r.nodes),
     ]);
     return {
+      schema: SWEEP_SCHEMA,
       fetchedAt: new Date().toISOString(),
       org: profile.org,
       range,
-      open: open.map((n) => toRow(n, bucketOf(n))),
+      open: openRows,
       merged: merged.map((n) => toRow(n, 'merged')),
       // Queue rows resolve "when was *my* review requested" from the timeline.
       queue: queue.map((n) => toRow(n, bucketOf(n), login)),
+      sprintRisk: null,
     };
   }
 
   private canPatch(base: SweepResult | null, org: string, range: DateRange): base is SweepResult {
-    if (!base || base.org !== org) return false;
+    if (!base || base.schema !== SWEEP_SCHEMA || base.org !== org) return false;
     if (base.range.start !== range.start || (base.range.end ?? null) !== (range.end ?? null)) return false;
     const age = Date.now() - Date.parse(base.fetchedAt);
     return age >= 0 && age < INCREMENTAL_MAX_AGE_MS;
@@ -232,8 +333,7 @@ export class GithubService {
     range: DateRange,
     login: string,
   ): Promise<SweepResult | null> {
-    // `since` never reaches before the range start, so the looser updated:>=
-    // filter on the open delta can't smuggle in rows the range would exclude.
+    // `since` never reaches before the range start.
     const sinceMs = Math.max(
       Date.parse(base.fetchedAt) - INCREMENTAL_SKEW_MS,
       Date.parse(`${range.start}T00:00:00Z`),
@@ -251,7 +351,7 @@ export class GithubService {
 
     const mergedRange = range.end ? `merged:${range.start}..${range.end}` : `merged:>=${range.start}`;
     const [open, merged, queue] = await Promise.all([
-      this.searchAll(`${parts.open} updated:>=${since}`, QUERY_OPEN).then((r) => r.nodes),
+      this.searchAll(`${parts.open} updated:>=${since}`, QUERY_OPEN).then((r) => this.openRows(r.nodes)),
       this.searchAll(`${parts.merged} ${mergedRange} updated:>=${since}`, QUERY_BARE).then((r) => r.nodes),
       this.searchAll(`${parts.queue} updated:>=${since}`, QUERY_QUEUE).then((r) => r.nodes),
     ]);
@@ -261,12 +361,14 @@ export class GithubService {
       return [...fresh, ...rows.filter((r) => !touched.has(rowKey(r)) && !freshKeys.has(rowKey(r)))];
     };
     return {
+      schema: SWEEP_SCHEMA,
       fetchedAt,
       org: base.org,
       range,
-      open: patch(base.open, open.map((n) => toRow(n, bucketOf(n)))),
+      open: patch(base.open, open),
       merged: patch(base.merged, merged.map((n) => toRow(n, 'merged'))),
       queue: patch(base.queue, queue.map((n) => toRow(n, bucketOf(n), login))),
+      sprintRisk: null,
     };
   }
 
@@ -293,27 +395,62 @@ export class GithubService {
     const mid = midDate(from, to);
     const [a, b] = await Promise.all([
       this.searchWindowed(build, from, mid, doc, depth + 1),
-      this.searchWindowed(build, nextDay(mid), to, doc, depth + 1),
+      this.searchWindowed(build, addDays(mid, 1), to, doc, depth + 1),
     ]);
-    // Day-granular halves can't overlap for a single date field, but dedupe
-    // defensively — a duplicate row is worse than a wasted comparison.
-    const seen = new Set<string>();
-    return [...a, ...b].filter((n) => {
-      const k = nodeKey(n);
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
+    return uniqueNodes([...a, ...b]);
+  }
+
+  /** Open rows, with details for the ones that need them. */
+  private async openRows(nodes: SearchNode[]): Promise<PrRow[]> {
+    const details = await this.fetchDetails(nodes.filter(needsDetails).map((n) => n.id));
+    return nodes.map((n) => toRow(n, bucketOf(n), undefined, details.get(n.id)));
+  }
+
+  /**
+   * DETAIL_QUERY for `ids`, a batch at a time. The details are optional: if
+   * GitHub won't answer, the board still shows, and those rows just lack them
+   * until the next sweep.
+   */
+  private async fetchDetails(ids: string[]): Promise<Map<string, Details>> {
+    const details = new Map<string, Details>();
+    try {
+      for (let i = 0; i < ids.length; i += DETAIL_BATCH) {
+        const data = await this.graphql<{ nodes: Array<DetailNode | null> }>(DETAIL_QUERY, {
+          ids: ids.slice(i, i + DETAIL_BATCH),
+        });
+        for (const d of data.nodes ?? []) if (d?.id) details.set(d.id, detailsOf(d));
+      }
+    } catch (e) {
+      if (process.env.PRSWEEP_DEBUG) console.log(`[github] details skipped: ${(e as Error).message}`);
+    }
+    return details;
+  }
+
+  /** Merged PRs in from..to, one week per search with MERGED_CONCURRENCY in flight. */
+  private async searchMerged(q: string, from: string, to: string): Promise<SearchNode[]> {
+    const weeks = await mapLimit(windows(from, to, MERGED_WINDOW_DAYS), MERGED_CONCURRENCY, ([a, b]) =>
+      this.searchWindowed((x, y) => `${q} merged:${x}..${y}`, a, b, QUERY_BARE),
+    );
+    return uniqueNodes(weeks.flat());
   }
 
   private async searchAll(q: string, doc: string = QUERY_BARE): Promise<{ nodes: SearchNode[]; total: number }> {
     const nodes: SearchNode[] = [];
     let after: string | null = null;
     let total = 0;
-    // The search cap is SEARCH_CAP results = SEARCH_CAP / PAGE_SIZE pages; the
-    // guard also keeps a backend pagination bug from spinning forever.
-    for (let page = 0; page < SEARCH_CAP / PAGE_SIZE; page++) {
-      const data: SearchPage = await this.graphql(doc, { q, after });
+    let first = PAGE_SIZE;
+    // Search stops at SEARCH_CAP results; the guard (smallest pages, plus the two
+    // halvings) also keeps a backend pagination bug from spinning forever.
+    for (let request = 0; request < SEARCH_CAP / MIN_PAGE_SIZE + 2 && nodes.length < SEARCH_CAP; request++) {
+      let data: SearchPage;
+      try {
+        data = await this.graphql(doc, { q, after, first }, 0, first > MIN_PAGE_SIZE);
+      } catch (e) {
+        if (!(e instanceof GithubTimeout)) throw e;
+        first = Math.max(MIN_PAGE_SIZE, first / 2);
+        this.counters.retries++;
+        continue;
+      }
       total = data.search.issueCount ?? 0;
       // Non-PR results (the search type is issue-shaped) come back as empty
       // objects from the inline fragment — drop them.
@@ -324,9 +461,17 @@ export class GithubService {
     return { nodes, total };
   }
 
-  private async graphql<T>(query: string, variables: Record<string, unknown>, attempt = 0): Promise<T> {
+  /** `shrinkable`: a 502/504 throws GithubTimeout at once so the caller can ask for less. */
+  private async graphql<T>(
+    query: string,
+    variables: Record<string, unknown>,
+    attempt = 0,
+    shrinkable = false,
+  ): Promise<T> {
     const token = this.token();
     if (!token) throw new Error('No GitHub token configured.');
+    this.counters.requests++;
+    if (attempt > 0) this.counters.retries++;
     let res: {
       ok: boolean;
       status: number;
@@ -346,21 +491,35 @@ export class GithubService {
     } catch (e) {
       // Network blip — same treatment as a transient server error.
       if (attempt >= MAX_RETRIES) throw e;
-      await sleep(this.backoff(attempt));
-      return this.graphql(query, variables, attempt + 1);
+      await this.pause('network error', this.backoff(attempt));
+      return this.graphql(query, variables, attempt + 1, shrinkable);
     }
     if (res.status === 401) throw new Error('GitHub rejected the token (401). Replace it in Settings.');
     if (!res.ok) {
+      if (shrinkable && (res.status === 502 || res.status === 504)) {
+        throw new GithubTimeout(`GitHub API error: HTTP ${res.status}`);
+      }
       // 403/429 are the primary/secondary rate limits; 5xx is GitHub having a
       // moment (big GraphQL queries 502 more than they should). Honor the
       // server-stated wait when there is one, back off exponentially otherwise.
       if (attempt < MAX_RETRIES && [403, 429, 502, 503, 504].includes(res.status)) {
-        await sleep(this.retryAfter(res) ?? this.backoff(attempt));
-        return this.graphql(query, variables, attempt + 1);
+        await this.pause(`HTTP ${res.status}`, this.retryAfter(res) ?? this.backoff(attempt));
+        return this.graphql(query, variables, attempt + 1, shrinkable);
       }
       throw new Error(`GitHub API error: HTTP ${res.status}`);
     }
-    const body = (await res.json()) as { data?: T; errors?: Array<{ message: string; type?: string }> };
+    let body: { data?: T; errors?: Array<{ message: string; type?: string }> };
+    try {
+      body = (await res.json()) as typeof body;
+    } catch {
+      // Queries GitHub gives up on can also arrive as a 200 with a cut-off body.
+      if (shrinkable) throw new GithubTimeout('GitHub API returned a truncated response.');
+      if (attempt < MAX_RETRIES) {
+        await this.pause('truncated response', this.backoff(attempt));
+        return this.graphql(query, variables, attempt + 1, shrinkable);
+      }
+      throw new Error('GitHub API returned a truncated response.');
+    }
     if (process.env.PRSWEEP_DEBUG) {
       console.log('[github] vars:', JSON.stringify(variables).slice(0, 300));
       console.log('[github] scopes:', res.headers.get('x-oauth-scopes'), '| sso:', res.headers.get('x-github-sso'), '| token:', (token ?? '').slice(0, 12) + '…' + (token ?? '').length);
@@ -369,8 +528,8 @@ export class GithubService {
     if (body.errors?.length) {
       // GraphQL rate limiting arrives as an HTTP 200 with a typed error.
       if (attempt < MAX_RETRIES && body.errors.some((e) => e.type === 'RATE_LIMITED')) {
-        await sleep(this.retryAfter(res) ?? this.backoff(attempt));
-        return this.graphql(query, variables, attempt + 1);
+        await this.pause('RATE_LIMITED', this.retryAfter(res) ?? this.backoff(attempt));
+        return this.graphql(query, variables, attempt + 1, shrinkable);
       }
       throw new Error(`GitHub API error: ${body.errors[0].message}`);
     }
@@ -391,10 +550,19 @@ export class GithubService {
     return null;
   }
 
+  /** Sleep before a retry; PRSWEEP_DEBUG says why and for how long. */
+  private async pause(reason: string, ms: number): Promise<void> {
+    if (process.env.PRSWEEP_DEBUG) console.log(`[github] retry after ${reason}, waiting ${(ms / 1000).toFixed(1)} s`);
+    await sleep(ms);
+  }
+
   private backoff(attempt: number): number {
     return (this.opts.retryBaseMs ?? 1000) * 2 ** attempt;
   }
 }
+
+/** GitHub couldn't answer a search page in time; the page should be re-sent smaller. */
+class GithubTimeout extends Error {}
 
 function bucketOf(n: SearchNode): ReviewBucket {
   switch (n.reviewDecision) {
@@ -409,7 +577,37 @@ function bucketOf(n: SearchNode): ReviewBucket {
   }
 }
 
-function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string): PrRow {
+/**
+ * Rows whose attention reasons need DETAIL_QUERY: approved (merge conflicts,
+ * approval age), changes requested (review time vs. last commit), and needs
+ * review with nobody asked (whether anyone reviewed anyway). Drafts only ever
+ * get the old-draft reason.
+ */
+function needsDetails(n: SearchNode): boolean {
+  if (n.isDraft) return false;
+  return bucketOf(n) !== 'needs-review' || requestCountOf(n) === 0;
+}
+
+function requestCountOf(n: SearchNode): number {
+  return n.reviewRequests.totalCount ?? n.reviewRequests.nodes.length;
+}
+
+function detailsOf(d: DetailNode): Details {
+  const newest = (state: string): string | null =>
+    d.latestReviews.nodes
+      .filter((r) => r.state === state && r.submittedAt)
+      .map((r) => r.submittedAt as string)
+      .sort()
+      .pop() ?? null;
+  return {
+    mergeable: d.mergeable === 'CONFLICTING' ? 'conflicting' : d.mergeable === 'MERGEABLE' ? 'mergeable' : 'unknown',
+    approvedAt: newest('APPROVED'),
+    changesRequestedAt: newest('CHANGES_REQUESTED'),
+    reviewCount: d.latestReviews.totalCount,
+  };
+}
+
+function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string, details?: Details): PrRow {
   return {
     repo: n.repository.name,
     number: n.number,
@@ -426,10 +624,19 @@ function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string): PrRow {
     additions: n.additions,
     deletions: n.deletions,
     requestedReviewers: n.reviewRequests.nodes
-      .map((r) => r.requestedReviewer?.login)
+      .map((r) => r.requestedReviewer?.login ?? r.requestedReviewer?.combinedSlug)
       .filter((l): l is string => !!l),
+    requestCount: requestCountOf(n),
     ci: ciOf(n),
+    lastCommitAt: n.commits?.nodes?.[0]?.commit?.committedDate ?? null,
     reviewRequestedAt: viewer ? requestedAtFor(n, viewer) : null,
+    mergeable: details?.mergeable ?? null,
+    approvedAt: details?.approvedAt ?? null,
+    changesRequestedAt: details?.changesRequestedAt ?? null,
+    reviewCount: details?.reviewCount ?? null,
+    // Judged after the sweep by the attention engine (see annotate).
+    attention: [],
+    quiet: false,
   };
 }
 
@@ -463,6 +670,42 @@ function midDate(from: string, to: string): string {
   return mid.toISOString().slice(0, 10);
 }
 
-function nextDay(date: string): string {
-  return new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Consecutive `days`-long windows covering from..to, the last one cut short at `to`. */
+function windows(from: string, to: string, days: number): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  for (let start = from; start <= to; start = addDays(start, days)) {
+    const end = addDays(start, days - 1);
+    out.push([start, end < to ? end : to]);
+  }
+  return out;
+}
+
+/** Windows can't overlap for a single date field, but dedupe defensively — a
+    duplicate row is worse than a wasted comparison. */
+function uniqueNodes(nodes: SearchNode[]): SearchNode[] {
+  const seen = new Set<string>();
+  return nodes.filter((n) => {
+    const k = nodeKey(n);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/** Like Promise.all over `items.map(fn)`, but with at most `limit` calls in flight. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
 }

@@ -38,18 +38,24 @@ organization. It ships for Windows and Linux.
 - `statusCheckRollup` and `timelineItems` dominate sweep latency. Request an expensive field only
   in the query whose rows display it (`QUERY_BARE`, `QUERY_OPEN`, `QUERY_QUEUE`). Measure sweep
   time on a large org before and after adding fields.
+- A field only some rows need (`mergeable`, review times) goes in `DETAIL_QUERY`, fetched with
+  `nodes(ids:)` for just those rows, never in a search. Details are optional: if that query
+  fails, the sweep still succeeds and those fields stay null.
 - Verify API behavior against the live API before encoding it. Record each verified quirk in the
   header comment of `github.service.ts` and in the README.
 
 ## Cached data and config
 
 - The boot refresh and auto-refreshes patch `snapshot.json` incrementally, so a PR nobody touched
-  on GitHub keeps its cached row. When `PrRow` gains a field, old snapshots must get a full
-  re-sweep. v0.11 adds a snapshot schema version for this; bump it with every row change.
+  on GitHub keeps its cached row. When `PrRow` or `SweepResult` changes shape, bump
+  `SWEEP_SCHEMA` in `desktop/src/shared/types.ts`. Snapshots from another schema are then
+  never painted or patched, and the first refresh after an update is a full one.
 - `ConfigService` migrates `config.json` on read (`normalizeProfile`). A new setting needs a
   default there, must survive profile export/import, and needs a case in
   `config.service.test.mjs`.
 - Profile export never includes tokens or machine-level preferences.
+- Sweep snoozes live in the renderer's `localStorage` (`prsweep-snoozes`), per machine, next to
+  the theme choice. They're never exported, and entries from earlier days are pruned.
 - Tokens are encrypted at rest with Electron `safeStorage` in `token.bin`. Never log a full
   token.
 - Don't rename the userData folder (`app.setName('pr-sweep')`) or the executable
@@ -58,8 +64,10 @@ organization. It ships for Windows and Linux.
 
 ## Product rules
 
-- The attention engine is the single definition of "needs attention". The Sweep section, the
-  sprint summary and the standup all read from it.
+- The attention engine (`desktop/src/main/core/attention.ts`) is the single definition of
+  "needs attention". `prs:fetch` runs it over every open row after every sweep, cached rows
+  included. The Sweep section, the tray line and the sprint summary read its output; the
+  renderer never decides on its own whether a PR needs attention.
 - Workflow health, not human performance: no per-person counts, leaderboards or review stats.
 - No AI features before 1.0.
 - Windows and Linux only. macOS is not planned.
@@ -92,13 +100,32 @@ Run these from the repo root unless noted.
 - From `desktop/` after a build, `GH_TOKEN=$(gh auth token) node e2e/screenshot.mjs` writes
   screenshots to `desktop/e2e/shots/`. `PRSWEEP_DEMO=1` points it at a public org for README
   images.
-- `PRSWEEP_DEBUG=1` makes the main process log GraphQL variables and response bodies.
+- `PRSWEEP_DEBUG=1` makes the main process log GraphQL variables and response bodies, plus one
+  `[sweep]` line per sweep with its mode, duration, requests and retries.
+- From `desktop/` after `npm run build:main`,
+  `GH_TOKEN=$(gh auth token) node e2e/bench-sweep.mjs <org> [login,login,…] [runs]` times full
+  sweeps and auto-refreshes against the live API. The performance budget in `ROADMAP.md` is
+  measured with it.
 
 ## Releases
 
 - The app version lives in `desktop/package.json`. The root `package.json` version isn't used.
-- Bump the version in the same commit as the change and end the subject with it:
-  `fix: single-instance lock … (v0.10.4)`.
+- **Each roadmap release gets its own branch**, `release/vX.Y`, cut from `main`. All of that
+  milestone's commits go there. Open a draft pull request to `main` early, so CI runs on every
+  push, and keep its testing steps current. When the milestone's "Done when" holds, mark it
+  ready, merge, then tag `vX.Y.0` on `main`.
+- A roadmap release bumps the version once, in the last commit on its branch:
+  `chore(release): v0.11.0`. A patch outside a milestone bumps it in the fix commit and ends the
+  subject with it: `fix: single-instance lock … (v0.10.4)`.
+- **Every release has hand-written notes** in `docs/releases/vX.Y.Z.md`, committed with the
+  version bump. The release workflow publishes that file as the release body and fails before
+  building if it's missing. Write them for a reader skimming on a phone:
+  - Open with one bold **TL;DR:** line saying what changed and why it matters.
+  - Then short sections, in this order, only when they have something: `## ✨ New`,
+    `## ⚡ Faster`, `## 🐛 Fixed`, `## 👀 Heads up` (anything a user might trip over), and
+    `## ⬆️ Getting it`.
+  - One line per bullet, starting with a **bold** phrase. Plain words, user-visible effects,
+    real numbers when there are some. No commit hashes, no internals, no paragraphs.
 - Pushing a `v*` tag runs `.github/workflows/release.yml`. It builds the signed Windows installer,
   the portable exe and the Linux AppImage, then publishes one GitHub release. The `latest*.yml`
   files and blockmaps must ship with every release, because the auto-updater reads them.

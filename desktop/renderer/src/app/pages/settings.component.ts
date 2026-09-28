@@ -90,8 +90,9 @@ import { BoardStore } from '../board.store';
             type="number"
             min="0"
             [value]="store.activeProfile()?.staleDays ?? 5"
-            (change)="store.patchProfile({ staleDays: +$any($event.target).value })"
+            (change)="store.setStaleDays(+$any($event.target).value)"
           />
+          <span class="hint">Also sets when the Sweep flags PRs waiting for review, stale PRs and old drafts.</span>
         </label>
       </section>
 

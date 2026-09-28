@@ -6,9 +6,11 @@
  */
 import assert from 'node:assert';
 import { GithubService } from '../../../dist/main/main/core/github.service.js';
+import { SWEEP_SCHEMA } from '../../../dist/main/shared/types.js';
 
 function node(number, reviewDecision, extra = {}) {
   return {
+    id: `n${number}`,
     number,
     title: `pr ${number}`,
     url: `https://github.com/o/r/pull/${number}`,
@@ -89,10 +91,11 @@ async function runSweep(config, range) {
       return json(page([node(10, 'REVIEW_REQUIRED')]));
     }
     if (q.includes('is:merged')) {
-      queries.merged = q;
+      (queries.merged ??= []).push(q);
       return json(page([node(20, null, { mergedAt: '2026-08-05T00:00:00Z' })]));
     }
-    queries.open = q;
+    if (q.includes('updated:<')) queries.carried = q;
+    else queries.open = q;
     return json(
       page([
         node(1, 'APPROVED'),
@@ -117,7 +120,9 @@ async function runSweep(config, range) {
   assert.match(queries.open, /draft:false/, 'hides drafts by default');
   assert.match(queries.open, /\(author:alice OR author:bob\)/, 'ORs the authors');
   assert.match(queries.open, /updated:2026-08-01\.\.\d{4}-\d{2}-\d{2}/, 'open-ended range closes at today');
-  assert.match(queries.merged, /merged:2026-08-01\.\.\d{4}-\d{2}-\d{2}/, 'open-ended merged closes at today');
+  const today = new Date().toISOString().slice(0, 10);
+  assert.ok(queries.merged.some((q) => q.includes('merged:2026-08-01..2026-08-07')), 'first week starts at the range start');
+  assert.ok(queries.merged.some((q) => q.endsWith(`..${today}`)), 'open-ended merged closes at today');
   assert.match(queries.queue, /review-requested:me/, 'queue uses the viewer login');
 
   const bucket = (n) => result.open.find((r) => r.number === n)?.bucket;
@@ -138,10 +143,20 @@ async function runSweep(config, range) {
   assert.ok(!queries.open.includes('draft:false'), 'includeDrafts omits draft:false');
 }
 
-// --- a closed range uses merged:start..end ---
+// --- a closed range is swept one week per merged search, the last week cut at the end ---
 {
-  const { queries } = await runSweep(makeConfig(), { start: '2026-08-01', end: '2026-09-01' });
-  assert.match(queries.merged, /merged:2026-08-01\.\.2026-09-01/);
+  const { result, queries } = await runSweep(makeConfig(), { start: '2026-08-01', end: '2026-09-01' });
+  assert.deepEqual(
+    queries.merged.map((q) => q.match(/merged:(\S+)/)[1]).sort(),
+    [
+      '2026-08-01..2026-08-07',
+      '2026-08-08..2026-08-14',
+      '2026-08-15..2026-08-21',
+      '2026-08-22..2026-08-28',
+      '2026-08-29..2026-09-01',
+    ],
+  );
+  assert.equal(result.merged.length, 1, 'the same PR from every window is kept once');
 }
 
 // --- no authors → no OR clause ---
@@ -216,7 +231,7 @@ await assert.rejects(
   assert.equal(calls, 4, 'initial call + 3 retries');
 }
 
-// --- a window over the 1000-result cap splits by date and dedupes ---
+// --- a week over the 1000-result cap splits by date; other weeks are kept ---
 {
   const merged = [];
   globalThis.fetch = async (_url, opts) => {
@@ -226,27 +241,48 @@ await assert.rejects(
     if (q.includes('review-requested')) return json(page([]));
     if (q.includes('is:merged')) {
       merged.push(q);
-      if (q.includes('merged:2026-08-01..2026-08-31')) return json(page([node(100, null)], 1500));
-      if (q.includes('merged:2026-08-01..2026-08-16')) return json(page([node(101, null)], 800));
-      if (q.includes('merged:2026-08-17..2026-08-31')) return json(page([node(102, null)], 700));
-      assert.fail(`unexpected merged window: ${q}`);
+      if (q.includes('merged:2026-08-01..2026-08-07')) return json(page([node(100, null)], 1500));
+      if (q.includes('merged:2026-08-01..2026-08-04')) return json(page([node(101, null)], 800));
+      if (q.includes('merged:2026-08-05..2026-08-07')) return json(page([node(102, null)], 700));
+      // Every other week: one PR numbered after its first day.
+      return json(page([node(200 + Number(q.match(/merged:\d{4}-\d{2}-(\d{2})/)[1]), null)]));
     }
     return json(page([node(1, 'APPROVED')]));
   };
   const svc = new GithubService(() => 'tok');
   const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: '2026-08-31' });
-  assert.equal(merged.length, 3, 'full window + two halves');
+  assert.equal(merged.length, 7, 'five weeks + two halves of the capped one');
   assert.deepEqual(
-    result.merged.map((r) => r.number).sort(),
-    [101, 102],
-    'capped window replaced by its halves',
+    result.merged.map((r) => r.number).sort((a, b) => a - b),
+    [101, 102, 208, 215, 222, 229],
+    'capped week replaced by its halves, other weeks kept',
   );
+}
+
+// --- merged weeks run in parallel, at most 4 at a time ---
+{
+  let inFlight = 0;
+  let peak = 0;
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:merged')) return json(page([]));
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    await new Promise((r) => setTimeout(r, 5));
+    inFlight--;
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok');
+  await svc.sweep(makeConfig(), { start: '2026-06-01', end: '2026-08-31' });
+  assert.equal(peak, 4, 'thirteen weeks, four in flight');
 }
 
 // --- incremental patch: a changed PR moves buckets, untouched rows survive ---
 {
   const base = {
     fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [row(1, 'needs-review'), row(2, 'needs-review')],
@@ -278,6 +314,7 @@ await assert.rejects(
 {
   const base = {
     fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [row(1, 'needs-review'), row(2, 'approved')],
@@ -303,6 +340,7 @@ await assert.rejects(
 {
   const base = {
     fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [row(1, 'needs-review')],
@@ -327,6 +365,7 @@ await assert.rejects(
 {
   const base = {
     fetchedAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [],
@@ -428,6 +467,7 @@ await assert.rejects(
   await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
   const base = {
     fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
     org: 'acme',
     range: { start: '2026-08-01', end: null },
     open: [row(1, 'needs-review')],
@@ -458,6 +498,415 @@ await assert.rejects(
   assert.ok(docs.queue.includes('timelineItems'), 'queue rows fetch the timeline');
   assert.ok(!docs.probe.includes('statusCheckRollup'), 'changed probe stays bare');
   assert.ok(!docs.probe.includes('timelineItems'), 'changed probe stays bare');
+}
+
+// --- a search page that times out is re-sent at 50, then 25, not at the same size ---
+{
+  const sizes = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested') || body.variables.q.includes('updated:<')) return json(page([]));
+    sizes.push(body.variables.first);
+    if (body.variables.first === 100) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    if (body.variables.first === 50) return { ok: false, status: 504, headers: headers(), json: async () => ({}) };
+    return json(page([node(1, 'APPROVED')]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(sizes, [100, 50, 25], 'each timeout halves the page instead of repeating it');
+  assert.equal(result.open.length, 1, 'the smaller page still delivers the rows');
+  assert.equal(svc.lastSweep.retries, 2, 'both re-sends count as retries');
+}
+
+// --- once a search shrinks its pages, later pages stay small ---
+{
+  const calls = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested') || body.variables.q.includes('updated:<')) return json(page([]));
+    const { first, after } = body.variables;
+    calls.push({ first, after });
+    if (first === 100) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    const next = after === null;
+    return json({
+      search: {
+        issueCount: 2,
+        pageInfo: { hasNextPage: next, endCursor: next ? 'c1' : null },
+        nodes: [node(after === null ? 1 : 2, 'APPROVED')],
+      },
+    });
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(calls, [
+    { first: 100, after: null },
+    { first: 50, after: null },
+    { first: 50, after: 'c1' },
+  ]);
+  assert.deepEqual(result.open.map((r) => r.number), [1, 2]);
+}
+
+// --- at 25 the normal retries apply, then the sweep reports the error ---
+{
+  const sizes = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested') || body.variables.q.includes('updated:<')) return json(page([]));
+    sizes.push(body.variables.first);
+    return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  await assert.rejects(() => svc.sweep(makeConfig(), { start: '2026-08-01', end: null }), /HTTP 502/);
+  assert.deepEqual(sizes, [100, 50, 25, 25, 25, 25], 'halve twice, then the usual 3 retries');
+}
+
+// --- a search page that arrives as a cut-off 200 body is re-sent smaller ---
+{
+  const sizes = [];
+  const truncated = { ok: true, status: 200, headers: headers(), json: async () => JSON.parse('{"data":') };
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!body.variables.q.includes('is:open') || body.variables.q.includes('review-requested') || body.variables.q.includes('updated:<')) return json(page([]));
+    sizes.push(body.variables.first);
+    return body.variables.first === 100 ? truncated : json(page([node(1, 'APPROVED')]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(sizes, [100, 50], 'treated like a timeout');
+  assert.equal(result.open.length, 1);
+}
+
+// --- any other request with a cut-off body is retried like a 5xx ---
+{
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls === 1) return { ok: true, status: 200, headers: headers(), json: async () => JSON.parse('{"data":') };
+    return json({ viewer: { login: 'me' } });
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  assert.equal(await svc.viewer(), 'me');
+  assert.equal(calls, 2, 'retried once');
+}
+
+// --- open PRs come from two searches: updated since the range start, and carried over ---
+{
+  const today = new Date().toISOString().slice(0, 10);
+  const { result, queries } = await runSweep(makeConfig(), { start: '2026-08-01', end: '2026-08-15' });
+  assert.match(queries.open, new RegExp(`updated:2026-08-01\\.\\.${today}`), 'open ignores the range end');
+  assert.match(queries.carried, /is:open/);
+  assert.match(queries.carried, /draft:false/);
+  assert.match(queries.carried, /\(author:alice OR author:bob\)/);
+  assert.match(queries.carried, /updated:<2026-08-01/, 'carried over = last updated before the range');
+  assert.match(queries.carried, new RegExp(`created:2008-01-01\\.\\.${today}`), 'windowed on created');
+  assert.equal(result.open.length, 5, 'the same PR from both searches is kept once');
+}
+
+// --- carried-over PRs join the open rows ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested')) return json(page([]));
+    return json(page([q.includes('updated:<') ? node(9, 'REVIEW_REQUIRED') : node(1, 'APPROVED')]));
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(result.open.map((r) => r.number).sort(), [1, 9]);
+}
+
+// --- review requests to teams count, and show as org/slug ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    return json(
+      page([
+        node(1, 'REVIEW_REQUIRED', {
+          reviewRequests: {
+            totalCount: 2,
+            nodes: [{ requestedReviewer: { login: 'dana' } }, { requestedReviewer: { combinedSlug: 'acme/platform' } }],
+          },
+        }),
+        node(2, 'REVIEW_REQUIRED'),
+      ]),
+    );
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  const pr = (n) => result.open.find((r) => r.number === n);
+  assert.deepEqual(pr(1).requestedReviewers, ['dana', 'acme/platform']);
+  assert.equal(pr(1).requestCount, 2);
+  assert.equal(pr(2).requestCount, 0, 'no requests at all');
+}
+
+// --- the last commit's time maps; merged rows have none ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('is:merged')) return json(page([node(20, null, { mergedAt: '2026-08-05T00:00:00Z' })]));
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    return json(
+      page([
+        node(1, 'REVIEW_REQUIRED', {
+          commits: {
+            nodes: [{ commit: { committedDate: '2026-08-03T10:00:00Z', statusCheckRollup: { state: 'SUCCESS' } } }],
+          },
+        }),
+      ]),
+    );
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: '2026-08-07' });
+  assert.equal(result.open[0].lastCommitAt, '2026-08-03T10:00:00Z');
+  assert.strictEqual(result.merged[0].lastCommitAt, null);
+}
+
+// --- details are fetched only for approved, changes-requested and unrequested needs-review PRs ---
+{
+  const detailIds = [];
+  const detail = {
+    n1: {
+      id: 'n1',
+      mergeable: 'CONFLICTING',
+      latestReviews: {
+        totalCount: 3,
+        nodes: [
+          { state: 'COMMENTED', submittedAt: '2026-08-02T00:00:00Z' },
+          { state: 'APPROVED', submittedAt: '2026-08-04T00:00:00Z' },
+          { state: 'APPROVED', submittedAt: '2026-08-03T00:00:00Z' },
+        ],
+      },
+    },
+    n2: {
+      id: 'n2',
+      mergeable: 'MERGEABLE',
+      latestReviews: { totalCount: 1, nodes: [{ state: 'CHANGES_REQUESTED', submittedAt: '2026-08-05T00:00:00Z' }] },
+    },
+    n4: { id: 'n4', mergeable: 'UNKNOWN', latestReviews: { totalCount: 0, nodes: [] } },
+  };
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (body.query.includes('nodes(ids:')) {
+      detailIds.push(...body.variables.ids);
+      return json({ nodes: body.variables.ids.map((id) => detail[id]) });
+    }
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    const requested = { totalCount: 1, nodes: [{ requestedReviewer: { login: 'dana' } }] };
+    return json(
+      page([
+        node(1, 'APPROVED', { id: 'n1' }),
+        node(2, 'CHANGES_REQUESTED', { id: 'n2' }),
+        node(3, 'REVIEW_REQUIRED', { id: 'n3', reviewRequests: requested }),
+        node(4, null, { id: 'n4' }),
+        node(5, 'REVIEW_REQUIRED', { id: 'n5', isDraft: true }),
+        node(6, 'APPROVED', { id: 'n6', isDraft: true }),
+      ]),
+    );
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig({ includeDrafts: true }), { start: '2026-08-01', end: null });
+  assert.deepEqual(detailIds.sort(), ['n1', 'n2', 'n4'], 'never requested PRs with requests, or drafts');
+  const pr = (n) => result.open.find((r) => r.number === n);
+  assert.equal(pr(1).mergeable, 'conflicting');
+  assert.equal(pr(1).approvedAt, '2026-08-04T00:00:00Z', 'newest approval, whatever the order');
+  assert.strictEqual(pr(1).changesRequestedAt, null);
+  assert.equal(pr(1).reviewCount, 3);
+  assert.equal(pr(2).mergeable, 'mergeable');
+  assert.equal(pr(2).changesRequestedAt, '2026-08-05T00:00:00Z');
+  assert.equal(pr(4).mergeable, 'unknown');
+  assert.equal(pr(4).reviewCount, 0);
+  for (const n of [3, 5, 6]) {
+    assert.strictEqual(pr(n).mergeable, null, `#${n} has no details`);
+    assert.strictEqual(pr(n).reviewCount, null, `#${n} review count unknown`);
+  }
+}
+
+// --- details go out in batches of 100 ---
+{
+  const batches = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (body.query.includes('nodes(ids:')) {
+      batches.push(body.variables.ids.length);
+      return json({
+        nodes: body.variables.ids.map((id) => ({ id, mergeable: 'MERGEABLE', latestReviews: { totalCount: 1, nodes: [] } })),
+      });
+    }
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    return json(page(Array.from({ length: 150 }, (_, i) => node(i + 1, 'APPROVED', { id: `n${i + 1}` }))));
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.deepEqual(batches.sort((a, b) => b - a), [100, 50]);
+  assert.ok(result.open.every((r) => r.mergeable === 'mergeable'));
+}
+
+// --- a failed detail query still gives a board, just without the details ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (body.query.includes('nodes(ids:')) return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (!q.includes('is:open') || q.includes('review-requested') || q.includes('updated:<')) return json(page([]));
+    return json(page([node(1, 'APPROVED', { id: 'n1' })]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.equal(result.open.length, 1);
+  assert.strictEqual(result.open[0].mergeable, null);
+  assert.strictEqual(result.open[0].approvedAt, null);
+  assert.equal(svc.lastSweep.ok, true);
+}
+
+// --- incremental: only changed PRs get new details; cached rows keep theirs ---
+{
+  const cached = {
+    ...row(1, 'approved'),
+    mergeable: 'conflicting',
+    approvedAt: '2026-08-02T00:00:00Z',
+    changesRequestedAt: null,
+    reviewCount: 1,
+  };
+  const base = {
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [cached],
+    merged: [],
+    queue: [],
+  };
+  const detailIds = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (body.query.includes('nodes(ids:')) {
+      detailIds.push(...body.variables.ids);
+      return json({
+        nodes: body.variables.ids.map((id) => ({ id, mergeable: 'MERGEABLE', latestReviews: { totalCount: 1, nodes: [] } })),
+      });
+    }
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    const q = body.variables.q;
+    if (q.includes('review-requested') || q.includes('is:merged')) return json(page([]));
+    if (q.includes('is:open')) return json(page([node(2, 'APPROVED', { id: 'n2' })]));
+    return json(page([node(2, 'APPROVED')])); // the org-wide probe: only #2 changed
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+  assert.deepEqual(detailIds, ['n2'], 'details only for the changed PR');
+  const pr = (n) => result.open.find((r) => r.number === n);
+  assert.equal(pr(1).mergeable, 'conflicting', 'untouched row keeps its cached details');
+  assert.equal(pr(2).mergeable, 'mergeable');
+}
+
+// --- results carry the snapshot schema ---
+{
+  const { result } = await runSweep(makeConfig(), { start: '2026-08-01', end: null });
+  assert.strictEqual(result.schema, SWEEP_SCHEMA, 'full sweep result is stamped');
+}
+
+// --- a base from an older schema is never patched: full sweep instead ---
+{
+  const queries = [];
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    queries.push(body.variables.q);
+    return json(page([]));
+  };
+  const base = {
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [row(1, 'needs-review')],
+    merged: [],
+    queue: [],
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+  assert.ok(!queries.some((q) => q.includes('updated:>=')), 'no incremental cutoff used');
+  assert.strictEqual(svc.lastSweep.mode, 'full');
+  assert.strictEqual(result.schema, SWEEP_SCHEMA, 'the replacement is stamped');
+}
+
+// --- lastSweep records mode, duration, round trips and retries (the PRSWEEP_DEBUG line) ---
+{
+  let calls = 0;
+  let failedOnce = false;
+  globalThis.fetch = async (_url, opts) => {
+    calls++;
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    if (!failedOnce) {
+      failedOnce = true;
+      return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+    }
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  assert.strictEqual(svc.lastSweep, null, 'no stats before the first sweep');
+  await svc.sweep(makeConfig(), { start: '2026-08-01', end: null });
+  const s = svc.lastSweep;
+  assert.equal(s.mode, 'full');
+  assert.equal(s.ok, true);
+  assert.equal(s.requests, calls, 'every HTTP round trip counts, re-sends included');
+  assert.equal(s.retries, 1, 'the 502 re-send counts as a retry');
+  assert.ok(Number.isFinite(s.ms) && s.ms >= 0, 'duration in ms');
+}
+
+// --- an incremental patch reports its mode, and counters reset per sweep ---
+{
+  const range = { start: '2026-08-01', end: null };
+  const base = () => ({
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
+    org: 'acme',
+    range,
+    open: [row(1, 'needs-review')],
+    merged: [],
+    queue: [],
+  });
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    return json(page([]));
+  };
+  const svc = new GithubService(() => 'tok');
+  await svc.sweep(makeConfig(), range, base());
+  assert.equal(svc.lastSweep.mode, 'incremental');
+  assert.equal(svc.lastSweep.requests, 2, 'viewer lookup + one probe');
+  await svc.sweep(makeConfig(), range, base());
+  assert.equal(svc.lastSweep.requests, 1, 'counters reset per sweep (viewer is memoized)');
+  assert.equal(svc.lastSweep.retries, 0);
+}
+
+// --- a failed sweep still records its stats ---
+{
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    return { ok: false, status: 502, headers: headers(), json: async () => ({}) };
+  };
+  const svc = new GithubService(() => 'tok', { retryBaseMs: 1 });
+  await assert.rejects(() => svc.sweep(makeConfig(), { start: '2026-08-01', end: null }), /HTTP 502/);
+  assert.equal(svc.lastSweep.ok, false);
+  assert.equal(svc.lastSweep.mode, 'full');
+  assert.ok(svc.lastSweep.retries >= 3, 'the failing search exhausted its retries');
 }
 
 console.log('github.service: query construction, bucketing, retry, windowing, incremental + CI cases pass');

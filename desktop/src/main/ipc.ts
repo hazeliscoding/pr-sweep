@@ -8,8 +8,9 @@
  */
 import { dialog, ipcMain, shell } from 'electron';
 import { readFileSync, writeFileSync } from 'fs';
+import { annotate } from './core/attention';
 import { activeProfile, ConfigService } from './core/config.service';
-import { GithubService } from './core/github.service';
+import { GithubService, SweepStats } from './core/github.service';
 import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
 import { pollForToken, requestDeviceCode } from './core/oauth.service';
 import { SnapshotStore } from './core/snapshot.store';
@@ -59,9 +60,19 @@ export function registerIpc(services: Services): void {
     // Auto-refreshes may patch the cached snapshot incrementally; manual
     // refreshes always resweep in full so the user has a recovery lever.
     const base = mode === 'auto' ? services.snapshots.get() : null;
-    const result = await services.github.sweep(services.config.get(), range, base);
-    services.snapshots.set(result);
-    return result;
+    try {
+      const config = services.config.get();
+      // Every sweep re-judges every open row, cached ones included.
+      const result = annotate(await services.github.sweep(config, range, base), {
+        now: Date.now(),
+        staleDays: activeProfile(config).staleDays,
+        rangeEnd: range.end,
+      });
+      services.snapshots.set(result);
+      return result;
+    } finally {
+      if (process.env.PRSWEEP_DEBUG) logSweep(mode ?? 'full', services.github.lastSweep);
+    }
   });
   ipcMain.handle('prs:latest', () => services.snapshots.get());
 
@@ -103,6 +114,15 @@ export function registerIpc(services: Services): void {
       activeProfileId: added[0].id,
     });
   });
+}
+
+/** One line per sweep: "[sweep] auto → incremental · 1.2 s · 3 requests · 0 retries". */
+function logSweep(requested: string, s: SweepStats | null): void {
+  if (!s) return;
+  console.log(
+    `[sweep] ${requested} → ${s.mode}${s.ok ? '' : ' (failed)'} · ${(s.ms / 1000).toFixed(1)} s · ` +
+      `${s.requests} requests · ${s.retries} retries`,
+  );
 }
 
 /** Per-install override wins over the baked-in default (either may be empty). */

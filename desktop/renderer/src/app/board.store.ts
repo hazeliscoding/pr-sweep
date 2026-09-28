@@ -64,6 +64,26 @@ export class BoardStore {
       .sort(byNewest((r) => r.updatedAt));
   });
 
+  /** Snoozed Sweep rows by PR key. Per machine, never exported (see loadSnoozes). */
+  private readonly snoozes = signal<Record<string, Snooze>>(loadSnoozes());
+  /** Reveal snoozed rows in the Sweep, muted, so they can be unsnoozed. */
+  readonly showSnoozed = signal(false);
+  /** Reveal quiet rows (see isQuiet in core/attention.ts), muted. */
+  readonly showQuiet = signal(false);
+
+  /**
+   * Open PRs the attention engine flagged, with the author chips and text
+   * filter applied. Most severe first, then the longest-standing.
+   */
+  private readonly flagged = computed(() =>
+    this.applyFilters((this.result()?.open ?? []).filter((r) => r.attention.length > 0)).sort(bySeverityThenAge),
+  );
+  readonly sweep = computed(() => this.flagged().filter((r) => !r.quiet && !this.isSnoozed(r)));
+  readonly snoozed = computed(() => this.flagged().filter((r) => !r.quiet && this.isSnoozed(r)));
+  readonly quiet = computed(() => this.flagged().filter((r) => r.quiet));
+
+  readonly sprintRisk = computed(() => this.result()?.sprintRisk ?? null);
+
   readonly needsReview = computed(() => this.slice('needs-review'));
   readonly changesRequested = computed(() => this.slice('changes-requested'));
   readonly approved = computed(() => this.slice('approved'));
@@ -133,14 +153,7 @@ export class BoardStore {
       const result = await this.api.fetchPrs(range, opts.auto ? 'auto' : 'full');
       this.result.set(result);
       this.error.set(null);
-      // Hand the tray its slices: the queue (counts + review-request toasts)
-      // and my own open PRs (approval / changes-requested / CI-failure toasts).
-      // Both use the raw result, not the filtered view, so background toasts
-      // don't depend on whatever author/text filter is active.
-      const needsReview = result.open.filter((r) => r.bucket === 'needs-review').length;
-      const login = this.auth()?.login;
-      const mine = login ? result.open.filter((r) => r.author === login) : [];
-      void this.api.syncTray({ queue: result.queue, mine, needsReviewCount: needsReview });
+      this.syncTray(result);
     } catch (e) {
       // A background refresh failing (laptop offline) shouldn't blank a board
       // that's already showing data — surface quietly only for manual actions.
@@ -148,6 +161,16 @@ export class BoardStore {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /**
+   * The stale threshold feeds the attention engine, which runs in main after a
+   * sweep. An auto refresh patches the cached sweep (usually one request) and
+   * re-judges every row with the new threshold.
+   */
+  setStaleDays(days: number): void {
+    this.patchProfile({ staleDays: days });
+    void this.refresh({ auto: true });
   }
 
   /** Drafts visibility is part of the search queries, so toggling refetches. */
@@ -297,6 +320,70 @@ export class BoardStore {
     void this.api.openExternal(row.url);
   }
 
+  /**
+   * A snooze holds while the PR is unchanged on GitHub, its worst reason is no
+   * worse than when it was snoozed, and it's still the same local day — so
+   * nothing stays hidden past the next standup.
+   */
+  isSnoozed(row: PrRow): boolean {
+    const s = this.snoozes()[this.snoozeKey(row)];
+    return (
+      !!s && s.day === localDay() && s.updatedAt === row.updatedAt && row.attention[0]?.severity >= s.severity
+    );
+  }
+
+  snooze(row: PrRow): void {
+    const entry: Snooze = { updatedAt: row.updatedAt, severity: row.attention[0].severity, day: localDay() };
+    this.saveSnoozes({ ...this.snoozes(), [this.snoozeKey(row)]: entry });
+  }
+
+  unsnooze(row: PrRow): void {
+    const next = { ...this.snoozes() };
+    delete next[this.snoozeKey(row)];
+    this.saveSnoozes(next);
+  }
+
+  private snoozeKey(row: PrRow): string {
+    return `${this.result()?.org ?? ''}/${row.repo}#${row.number}`;
+  }
+
+  /** Persist, dropping entries from earlier days: those can never hold again. */
+  private saveSnoozes(all: Record<string, Snooze>): void {
+    const today = localDay();
+    const kept = Object.fromEntries(Object.entries(all).filter(([, s]) => s.day === today));
+    this.snoozes.set(kept);
+    const result = this.result();
+    if (result) this.syncTray(result); // the tray's Sweep count leaves snoozed rows out
+    try {
+      localStorage.setItem(SNOOZE_KEY, JSON.stringify(kept));
+    } catch {
+      /* storage unavailable: snoozes last until the app restarts */
+    }
+  }
+
+  /**
+   * Hand the tray its slices: the queue (counts + review-request toasts), my
+   * own open PRs (approval / changes-requested / CI-failure toasts) and the
+   * counts behind its menu. All from the raw result, not the filtered view, so
+   * background toasts and counts don't depend on whatever author/text filter is
+   * active. Only quiet rows and snoozes, the user saying "not now", lower the
+   * Sweep count.
+   */
+  private syncTray(result: SweepResult): void {
+    const login = this.auth()?.login;
+    void this.api.syncTray({
+      queue: result.queue,
+      mine: login ? result.open.filter((r) => r.author === login) : [],
+      needsReviewCount: result.open.filter((r) => r.bucket === 'needs-review').length,
+      attentionCount: result.open.filter((r) => r.attention.length > 0 && !r.quiet && !this.isSnoozed(r)).length,
+    });
+  }
+
+  /** A next-step link: the PR itself or one of its tabs (checks, files). */
+  openUrl(url: string): void {
+    void this.api.openExternal(url);
+  }
+
   installUpdate(): void {
     void this.api.installUpdate();
   }
@@ -309,6 +396,38 @@ export class BoardStore {
       this.refreshTimer = setInterval(() => void this.refresh({ auto: true }), minutes * 60_000);
     }
   }
+}
+
+interface Snooze {
+  /** The PR's updatedAt when snoozed; any change on GitHub ends the snooze. */
+  updatedAt: string;
+  /** Its worst reason's severity when snoozed; a worse reason ends the snooze. */
+  severity: number;
+  /** The local day it was snoozed; the snooze ends with it. */
+  day: string;
+}
+
+const SNOOZE_KEY = 'prsweep-snoozes';
+
+function loadSnoozes(): Record<string, Snooze> {
+  try {
+    const all = JSON.parse(localStorage.getItem(SNOOZE_KEY) ?? '{}') as Record<string, Snooze>;
+    const today = localDay();
+    return Object.fromEntries(Object.entries(all).filter(([, s]) => s?.day === today));
+  } catch {
+    return {};
+  }
+}
+
+/** yyyy-mm-dd in local time: a snooze ends at local midnight, not UTC's. */
+function localDay(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function bySeverityThenAge(a: PrRow, b: PrRow): number {
+  const [x, y] = [a.attention[0], b.attention[0]];
+  return x.severity - y.severity || (x.since ?? a.updatedAt).localeCompare(y.since ?? b.updatedAt);
 }
 
 function byNewest(key: (r: PrRow) => string): (a: PrRow, b: PrRow) => number {
