@@ -117,6 +117,15 @@ Run these from the repo root unless noted.
 - A roadmap release bumps the version once, in the last commit on its branch:
   `chore(release): v0.11.0`. A patch outside a milestone bumps it in the fix commit and ends the
   subject with it: `fix: single-instance lock … (v0.10.4)`.
+- **Every release has hand-written notes** in `docs/releases/vX.Y.Z.md`, committed with the
+  version bump. The release workflow publishes that file as the release body and fails before
+  building if it's missing. Write them for a reader skimming on a phone:
+  - Open with one bold **TL;DR:** line saying what changed and why it matters.
+  - Then short sections, in this order, only when they have something: `## ✨ New`,
+    `## ⚡ Faster`, `## 🐛 Fixed`, `## 👀 Heads up` (anything a user might trip over), and
+    `## ⬆️ Getting it`.
+  - One line per bullet, starting with a **bold** phrase. Plain words, user-visible effects,
+    real numbers when there are some. No commit hashes, no internals, no paragraphs.
 - Pushing a `v*` tag runs `.github/workflows/release.yml`. It builds the signed Windows installer,
   the portable exe and the Linux AppImage, then publishes one GitHub release. The `latest*.yml`
   files and blockmaps must ship with every release, because the auto-updater reads them.

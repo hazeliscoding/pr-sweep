@@ -4,6 +4,9 @@ name: Release
 # AppImage, then publishes one GitHub release with all of them. latest.yml and
 # latest-linux.yml (+ blockmaps) are what electron-updater reads to self-update
 # installed copies — they must ship with every release.
+#
+# The release body is the hand-written docs/releases/<tag>.md. A tag without
+# one fails before anything builds: every release says what changed.
 on:
   push:
     tags: ['v*']
@@ -12,7 +15,20 @@ permissions:
   contents: write
 
 jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release notes exist
+        run: |
+          f="docs/releases/${{ github.ref_name }}.md"
+          if [ ! -s "$f" ]; then
+            echo "::error file=$f::Missing $f. Every release needs hand-written notes (see AGENTS.md > Releases)."
+            exit 1
+          fi
+
   build:
+    needs: notes
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +76,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: docs/releases
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -70,5 +89,5 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" dist/* \
             --repo "${{ github.repository }}" \
-            --title "${{ github.ref_name }}" \
-            --generate-notes
+            --title "PR Sweep ${{ github.ref_name }}" \
+            --notes-file "docs/releases/${{ github.ref_name }}.md"

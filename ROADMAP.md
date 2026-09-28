@@ -48,6 +48,13 @@ what to do next.
   meaningfully faster. What Tauri would change is installer size and idle memory, which
   haven't been measured yet.
 
+## Decisions (2026-09-28)
+
+- **Every release has hand-written notes** in `docs/releases/vX.Y.Z.md`: a bold TL;DR line, then
+  short one-line bullets under New, Faster, Fixed, Heads up and Getting it. The release workflow
+  publishes the file as the release body and fails before building if it's missing. GitHub's
+  generated notes were just a compare link.
+
 ## v0.11 decisions (2026-09-25)
 
 - **The board shows all of the team's open PRs**, not only the ones updated in the range, so PRs
