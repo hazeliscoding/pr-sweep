@@ -250,9 +250,10 @@ the `release/v0.11` branch.
       toggle. The tray count leaves them out.
 - [x] Tray: a "N need attention (team)" menu line and tooltip fallback, with `attentionCount`
       added to `syncTray`. Settings: the stale-threshold help text mentions the Sweep.
-- [ ] `chore(release): v0.11.0`, then mark the pull request ready and merge it. Once it ships, update an installed
-      v0.10.4 through the auto-updater and check that the first refresh fills every row without a
-      manual Refresh.
+- [x] `chore(release): v0.11.0` with its notes in `docs/releases/v0.11.0.md`, then mark the pull
+      request ready, merge it, and tag `v0.11.0`.
+- [ ] Update an installed v0.10.4 through the auto-updater and check that the first refresh fills
+      every row without a manual Refresh.
 
 **Done when:** opening the app shows a short list where every row says why it's there and what
 to do, a PR leaves the list on its own once it's fixed, the first refresh after updating from
