@@ -66,8 +66,10 @@ organization. It ships for Windows and Linux.
 
 - The attention engine (`desktop/src/main/core/attention.ts`) is the single definition of
   "needs attention". `prs:fetch` runs it over every open row after every sweep, cached rows
-  included. The Sweep section, the tray line and the sprint summary read its output; the
-  renderer never decides on its own whether a PR needs attention.
+  included. The Sweep section, the tray line, the sprint summary and the standup read its
+  output; the renderer never decides on its own whether a PR needs attention.
+- Sprint numbers are the team's: the health strip and the standup ignore author chips, search
+  and snoozes, which only shape the tables and the Sweep.
 - Sprints are computed, never stored: a profile keeps a schedule (`sprints`) and a `period`
   (`'current'`, a pinned `{ sprint }` or `'custom'`), and `core/sprints.ts` resolves them against
   today through `period:resolve`. The renderer never does sprint date math itself.
