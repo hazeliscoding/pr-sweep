@@ -23,10 +23,14 @@ const PAIRS = [
     [`${st}-text`, `${st}-subtle over bg-2`, 4.5], // status badge label on its tint
   ]),
   // Banners sit on the page; the app raises errors (critical) and updates (info).
-  ...['critical', 'info'].map((st) => [`${st}-text`, `${st}-subtle over bg-0`, 4.5]),
+  ...['critical', 'info'].flatMap((st) => [
+    [`${st}-text`, `${st}-subtle over bg-0`, 4.5],
+    ['text-1', `${st}-subtle over bg-0`, 4.5],
+    ['text-2', `${st}-subtle over bg-0`, 4.5],
+  ]),
   ['accent', 'bg-0', 3], // focus ring
   ['accent', 'bg-2', 3],
-  ...['healthy', 'warning', 'critical', 'running'].map((st) => [st, 'bg-2', 3]), // status dots
+  ...['healthy', 'warning', 'critical', 'running'].flatMap((st) => [[st, 'bg-1', 3], [st, 'bg-2', 3]]), // status dots
 ];
 
 function declarations(text) {

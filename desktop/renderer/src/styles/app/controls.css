@@ -1,0 +1,133 @@
+/* Quorum's controls as plain classes on native elements: buttons, inputs, the
+   segmented switch, badges, status dots and banners. Tokens only (see
+   styles/quorum/); check-contrast lists every text/surface pair used here. */
+
+.q-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--density-control);
+  padding: 0 var(--space-5);
+  font: var(--text-body-strong);
+  font-size: 12px;
+  color: var(--text-1);
+  background: var(--bg-2);
+  border: var(--border-width) solid var(--border-2);
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
+}
+.q-btn:hover:not(:disabled) { background: var(--bg-3); border-color: var(--border-3); }
+.q-btn:active:not(:disabled) { transform: translateY(0.5px); }
+.q-btn:disabled { color: var(--text-4); cursor: not-allowed; background: var(--bg-2); }
+.q-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.q-btn--primary { color: var(--text-inverse); background: var(--accent); border-color: var(--accent); }
+.q-btn--primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.q-btn--primary:disabled { color: var(--text-inverse); opacity: 0.55; background: var(--accent); }
+.q-btn--ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.q-btn--ghost:hover:not(:disabled) { background: var(--bg-3); border-color: transparent; color: var(--text-1); }
+.q-btn--ghost:disabled { background: transparent; }
+.q-btn--danger { color: var(--critical-text); background: transparent; border-color: var(--critical-border); }
+.q-btn--danger:hover:not(:disabled) { background: var(--critical-subtle); border-color: var(--critical-border); }
+.q-btn--sm { height: 24px; padding: 0 var(--space-4); }
+.q-btn--icon { width: var(--density-control); padding: 0; }
+
+.q-input {
+  height: var(--density-control);
+  padding: 0 var(--space-4);
+  font: var(--text-body);
+  color: var(--text-1);
+  background: var(--bg-2);
+  border: var(--border-width) solid var(--border-2);
+  border-radius: var(--radius-2);
+}
+.q-input::placeholder { color: var(--text-3); }
+.q-input:hover:not(:disabled) { border-color: var(--border-3); }
+.q-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.q-input:disabled { color: var(--text-3); }
+.q-input--mono { font: var(--text-data); }
+/* The native date picker's icon follows the theme's color scheme. */
+.q-input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.7; cursor: pointer; }
+
+.q-label {
+  font: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* Segmented switch: one choice of a few, like Sprints / Custom. */
+.q-seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--bg-1);
+  border: var(--border-width) solid var(--border-2);
+  border-radius: var(--radius-2);
+}
+.q-seg__item {
+  height: 22px;
+  padding: 0 var(--space-4);
+  font: var(--text-compact);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-1);
+  cursor: pointer;
+}
+.q-seg__item:hover:not(:disabled) { color: var(--text-1); background: var(--bg-3); }
+.q-seg__item[aria-checked="true"] { color: var(--text-1); background: var(--bg-4); }
+.q-seg__item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.q-seg__item:disabled { cursor: not-allowed; }
+
+/* Status: a dot's color and shape, always next to words. */
+.q-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-round);
+  background: currentColor;
+}
+.q-dot--healthy { color: var(--healthy); }
+.q-dot--warning { color: var(--warning); }
+.q-dot--critical { color: var(--critical); }
+.q-dot--running { color: var(--running); }
+.q-dot--info { color: var(--info); }
+.q-dot--pulse { animation: q-pulse var(--pulse-duration) var(--ease-standard) infinite; }
+
+.q-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 22px;
+  padding: 0 var(--space-4);
+  font: var(--text-compact);
+  font-weight: var(--weight-semibold);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-2);
+  white-space: nowrap;
+}
+.q-badge--info { color: var(--info-text); background: var(--info-subtle); border-color: var(--info-border); }
+
+.q-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin: var(--space-6) var(--space-8) 0;
+  padding: var(--space-5) var(--space-6);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-3);
+}
+.q-banner p { margin: 0; }
+.q-banner--critical { color: var(--critical-text); background: var(--critical-subtle); border-color: var(--critical-border); }
+.q-banner__title { font: var(--text-body-strong); }
+.q-banner__desc { font: var(--text-data); color: var(--text-1); margin-top: var(--space-1); }
+.q-banner__meta { font: var(--text-compact); color: var(--text-2); margin-top: var(--space-1); }
+.q-banner .q-icon { flex: 0 0 auto; margin-top: 1px; }
+
+.q-icon { display: inline-flex; line-height: 0; }

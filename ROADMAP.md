@@ -304,7 +304,7 @@ on the `release/v0.12` branch.
       949 KB.*
 - [x] Sprints core: `core/sprints.ts` (schedule math, the current sprint, period resolution),
       `sprints` and `period` on each profile with a migration, and a `period:resolve` IPC call.
-- [ ] Shell: top bar with the sprint picker, freshness indicator, loading bar, tabs, theme
+- [x] Shell: top bar with the sprint picker, freshness indicator, loading bar, tabs, theme
       toggle, update pill and error banner.
 - [ ] Board: health strip, filter bar, tables with density, CI status badges, Sweep rows, empty
       states and skeleton rows.

@@ -2,89 +2,96 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { BoardStore } from './board.store';
 import { OnboardingComponent } from './onboarding.component';
+import { PeriodPickerComponent } from './period-picker.component';
+import { FreshnessComponent } from './ui/freshness.component';
+import { IconComponent } from './ui/icon.component';
 
 type Theme = 'light' | 'dark';
 const THEME_KEY = 'prsweep-theme';
 
 /**
- * Root shell: no branding — the header-left is a title describing what the
- * current page shows (the selected sprint on the board, "Settings" there).
- * Sprint picker, refresh, and the light/dark toggle live here so they're
- * reachable from any page — everything binds to the shared BoardStore.
+ * Root shell: Quorum's top bar. Left, what this page is and the Board/Settings
+ * tabs; right, how fresh the data is, which period it covers, Refresh and the
+ * theme. Everything binds to the shared BoardStore, so the controls work from
+ * any page.
  */
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, OnboardingComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, OnboardingComponent, PeriodPickerComponent, FreshnessComponent, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="app">
-      <header class="app-header">
-        <h1 class="page-title">{{ pageTitle() }}</h1>
-        <div class="header-right">
-          @if (store.profiles().length > 1) {
-            <label>
-              Profile
-              <select
-                [disabled]="store.loading()"
-                (change)="store.switchProfile($any($event.target).value)"
-              >
-                @for (p of store.profiles(); track p.id) {
-                  <option [value]="p.id" [selected]="p.id === store.activeProfile()?.id">{{ p.name }}</option>
-                }
-              </select>
-            </label>
-          }
-          @if (store.updateState(); as update) {
-            @if (update.status === 'downloading') {
-              <span class="update-pill" title="A new version is downloading in the background">
-                Update v{{ update.version }} — {{ update.percent }}%
-              </span>
-            } @else {
-              <button
-                class="update-pill update-ready"
-                title="v{{ update.version }} is downloaded — restart to apply"
-                (click)="store.installUpdate()"
-              >
-                Update ready — Restart
-              </button>
-            }
-          }
-          @if (store.fetchedAgeMin() !== null) {
-            <span class="header-status">updated {{ ageLabel(store.fetchedAgeMin()!) }}</span>
-          }
-          <label>
-            From
-            <input
-              type="date"
+      <header class="topbar">
+        <h1 class="topbar__title">{{ pageTitle() }}</h1>
+        <nav class="q-tabs" aria-label="Pages">
+          <a class="q-tab" routerLink="/board" routerLinkActive="active" ariaCurrentWhenActive="page">Board</a>
+          <a class="q-tab" routerLink="/settings" routerLinkActive="active" ariaCurrentWhenActive="page">Settings</a>
+        </nav>
+        @if (store.profiles().length > 1) {
+          <label class="topbar__profile">
+            <span class="q-label">Profile</span>
+            <select
+              class="q-input"
               [disabled]="store.loading()"
-              [value]="store.range()?.start ?? ''"
-              (change)="store.setRange({ start: $any($event.target).value })"
-            />
+              (change)="store.switchProfile($any($event.target).value)"
+            >
+              @for (p of store.profiles(); track p.id) {
+                <option [value]="p.id" [selected]="p.id === store.activeProfile()?.id">{{ p.name }}</option>
+              }
+            </select>
           </label>
-          <label>
-            To
-            <input
-              type="date"
-              title="Leave empty for an open-ended view (until now)"
-              [disabled]="store.loading()"
-              [value]="store.range()?.end ?? ''"
-              (change)="store.setRange({ end: $any($event.target).value || null })"
-            />
-          </label>
-          <button class="btn-primary" [disabled]="store.loading()" (click)="store.refresh()">
-            {{ store.loading() ? 'Sweeping…' : 'Refresh' }}
-          </button>
-          <button (click)="toggleTheme()" [attr.aria-label]="'Switch to ' + otherTheme() + ' theme'">
-            {{ otherTheme() === 'dark' ? 'Dark' : 'Light' }}
-          </button>
-          <a class="nav-link" routerLink="/board" routerLinkActive="active">Board</a>
-          <a class="nav-link" routerLink="/settings" routerLinkActive="active">Settings</a>
-        </div>
+        }
+        <span class="spacer"></span>
+        @if (store.updateState(); as update) {
+          @if (update.status === 'downloading') {
+            <span class="q-badge q-badge--info" title="A new version is downloading in the background">
+              <q-icon name="download" [size]="12" />
+              Downloading v{{ update.version }} · {{ update.percent }}%
+            </span>
+          } @else {
+            <button
+              class="q-btn q-btn--primary q-btn--sm"
+              title="v{{ update.version }} is downloaded. Restart to apply it."
+              (click)="store.installUpdate()"
+            >
+              <q-icon name="refresh-cw" [size]="12" />
+              Restart to update
+            </button>
+          }
+        }
+        @if (store.result() || store.loading()) {
+          <q-freshness [state]="store.freshness()" [age]="ageLabel()" [title]="fetchedAtTitle()" />
+        }
+        <app-period-picker />
+        <button class="q-btn q-btn--primary" [disabled]="store.loading()" (click)="store.refresh()">
+          <q-icon name="refresh-cw" />
+          Refresh
+        </button>
+        <button
+          class="q-btn q-btn--ghost q-btn--icon"
+          [attr.aria-label]="'Switch to ' + otherTheme() + ' theme'"
+          [title]="'Switch to ' + otherTheme() + ' theme'"
+          (click)="toggleTheme()"
+        >
+          <q-icon [name]="otherTheme() === 'dark' ? 'moon' : 'sun'" />
+        </button>
+        @if (store.loading()) {
+          <span class="loadbar" aria-hidden="true"></span>
+        }
       </header>
 
       @if (store.error(); as err) {
-        <div class="error-banner">{{ err }}</div>
+        <div class="q-banner q-banner--critical" role="alert">
+          <q-icon name="circle-alert" [size]="16" />
+          <div>
+            <p class="q-banner__title">Couldn't refresh</p>
+            <p class="q-banner__desc">{{ err }}</p>
+            @if (ageLabel(); as age) {
+              <p class="q-banner__meta">Showing data from {{ age }}.</p>
+            }
+          </div>
+        </div>
       }
 
       <main class="main">
@@ -103,14 +110,9 @@ export class AppComponent {
 
   readonly pageTitle = computed(() => {
     if (this.url().includes('settings')) return 'Settings';
-    const range = this.store.range();
     // Prefix the active profile's name only when there's more than one.
     const profiles = this.store.profiles();
-    const prefix = profiles.length > 1 ? `${this.store.activeProfile()?.name} · ` : '';
-    if (!range?.start) return `${prefix}Pull requests`;
-    return range.end
-      ? `${prefix}Pull requests — ${dateLabel(range.start)} to ${dateLabel(range.end)}`
-      : `${prefix}Pull requests — since ${dateLabel(range.start)}`;
+    return profiles.length > 1 ? `${this.store.activeProfile()?.name} · Pull requests` : 'Pull requests';
   });
 
   constructor() {
@@ -122,7 +124,8 @@ export class AppComponent {
     });
     effect(() => {
       document.documentElement.dataset['theme'] = this.theme();
-      document.title = this.pageTitle();
+      const period = this.store.period()?.label;
+      document.title = period && !this.url().includes('settings') ? `${this.pageTitle()} · ${period}` : this.pageTitle();
       localStorage.setItem(THEME_KEY, this.theme());
     });
   }
@@ -131,20 +134,20 @@ export class AppComponent {
     this.theme.set(this.otherTheme());
   }
 
-  ageLabel(min: number): string {
+  /** "2m ago" since the last successful sweep; null before the first. */
+  ageLabel(): string | null {
+    const min = this.store.fetchedAgeMin();
+    if (min === null) return null;
     if (min < 1) return 'just now';
     if (min < 60) return `${min}m ago`;
     const h = Math.floor(min / 60);
     return h < 48 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
   }
-}
 
-/** "2026-08-09" → "Aug 9" (with year when it isn't the current one). */
-function dateLabel(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
-  return d.toLocaleDateString('en-US', opts);
+  fetchedAtTitle(): string | null {
+    const ts = this.store.result()?.fetchedAt;
+    return ts ? `Last swept ${new Date(ts).toLocaleString()}` : null;
+  }
 }
 
 /** Stored choice wins; first run follows the OS. */
