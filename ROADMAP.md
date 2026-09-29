@@ -306,8 +306,9 @@ on the `release/v0.12` branch.
       `sprints` and `period` on each profile with a migration, and a `period:resolve` IPC call.
 - [x] Shell: top bar with the sprint picker, freshness indicator, loading bar, tabs, theme
       toggle, update pill and error banner.
-- [ ] Board: health strip, filter bar, tables with density, CI status badges, Sweep rows, empty
-      states and skeleton rows.
+- [x] Board: health strip, filter bar, tables with density, CI status badges, Sweep rows, empty
+      states and skeleton rows. *CI reads as a word (Pass, Fail, Running) next to its dot.
+      Snoozed and quiet rows get a tag instead of being faded, so they keep AA contrast.*
 - [ ] Settings, with a Sprints section, and onboarding. The old stylesheet is deleted and the
       no-raw-colors rule switches on.
 - [ ] Voice pass over every string, a Design section in `AGENTS.md`, and README screenshots from
