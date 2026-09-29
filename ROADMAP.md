@@ -62,8 +62,11 @@ what to do next.
   come back. The sprint summary moves to v0.13, so there are five minor releases to 1.0: v0.11
   Sweep, v0.12 Quorum and sprints, v0.13 Sprint summary, v0.14 Related work, v0.15 Release
   candidate.
-- **Quorum, adapted.** Its tokens are copied as-is, with one local change: `text-3` fails AA in
-  both themes (3.3–3.6:1), so it becomes `#636D7C` in light and `#8590A0` in dark. Manrope, IBM
+- **Quorum, adapted.** Its tokens are copied as-is, with local AA changes: `text-3` fails in both
+  themes (3.3–3.6:1), so it becomes `#636D7C` in light and `#8590A0` in dark. The contrast check
+  found two more in the light theme: white button labels on `--accent` `#0D9488` reach only
+  3.74:1 (now `#0E7C73`), and `--warning` `#C98A12` as a status dot reaches 2.95:1 (now
+  `#B67D0F`). Manrope, IBM
   Plex Mono and the Lucide icons are bundled, never loaded from a CDN, to keep the "only GitHub"
   promise. Quorum's React components are the reference, rebuilt as a few small Angular components
   only where a pattern repeats; everything else is plain markup on Quorum tokens.
@@ -288,16 +291,17 @@ v0.10.x fills in every row, and the budget holds with the numbers recorded here.
 Theme: PR Sweep looks and reads like one calm instrument, and knows which sprint it's in. Built
 on the `release/v0.12` branch.
 
-- [ ] Roadmap, `AGENTS.md` and a draft pull request for the milestone.
-- [ ] Fixture mode (`PRSWEEP_FIXTURE=<name>`, unpackaged builds only): a canned sweep run through
+- [x] Roadmap, `AGENTS.md` and a draft pull request for the milestone.
+- [x] Fixture mode (`PRSWEEP_FIXTURE=<name>`, unpackaged builds only): a canned sweep run through
       the real attention engine, with no network. Fixtures `busy`, `calm`, `empty`, `error`,
       `onboarding`, `update` and `loading` use relative times. A loader in `core/` has tests,
       including one that `busy` triggers all nine attention reasons.
-- [ ] The screenshot script shoots every fixture state in both themes, each run in its own
+- [x] The screenshot script shoots every fixture state in both themes, each run in its own
       throwaway `--user-data-dir`. "Before" screenshots of the v0.11 UI go on the pull request.
-- [ ] Foundation: Quorum tokens with the AA fix, bundled Manrope and IBM Plex Mono with their OFL
+- [x] Foundation: Quorum tokens with the AA fix, bundled Manrope and IBM Plex Mono with their OFL
       texts, and vendored Lucide icons with the ISC notice. `check-contrast` and `check-assets`
-      run in CI, each with a positive control.
+      run in CI, each with a positive control. *The fonts take the renderer build from 329 KB to
+      949 KB.*
 - [ ] Sprints core: `core/sprints.ts` (schedule math, the current sprint, period resolution),
       `sprints` and `period` on each profile with a migration, and a `period:resolve` IPC call.
 - [ ] Shell: top bar with the sprint picker, freshness indicator, loading bar, tabs, theme
