@@ -103,6 +103,10 @@ const STATES = {
   async calm(win) {
     await boardReady(win);
     await shoot(win, 'calm');
+    // No schedule yet: the top bar's link opens Settings on a sprint schedule to set up.
+    await win.getByRole('link', { name: 'Set up sprints' }).click();
+    await win.locator('#sprints tbody tr').first().waitFor();
+    await shoot(win, 'settings-setup');
   },
   async empty(win) {
     await boardReady(win);
@@ -118,6 +122,9 @@ const STATES = {
     await win.getByRole('dialog').waitFor();
     await win.waitForTimeout(500);
     await shoot(win, 'onboarding');
+    await win.getByText('use a personal access token').click();
+    await win.locator('input[type="password"]').waitFor();
+    await shoot(win, 'onboarding-token');
   },
   async update(win) {
     await win.getByText(/0\.12\.1/).first().waitFor();

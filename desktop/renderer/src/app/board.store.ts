@@ -7,6 +7,8 @@ import {
   Profile,
   ResolvedPeriod,
   ProfilePatch,
+  SprintPreview,
+  SprintSchedule,
   SweepConfig,
   SweepConfigPatch,
   SweepResult,
@@ -224,6 +226,21 @@ export class BoardStore {
   setPeriod(period: Period): void {
     this.patchProfile({ period });
     void this.refresh();
+  }
+
+  /**
+   * Save the active profile's sprint schedule and sweep what it now points at.
+   * A new schedule opens on the current sprint; clearing one goes back to the
+   * custom range; an edit keeps whichever sprint is showing.
+   */
+  setSchedule(sprints: SprintSchedule | null): void {
+    const had = !!this.activeProfile()?.sprints;
+    this.patchProfile(sprints ? (had ? { sprints } : { sprints, period: 'current' }) : { sprints: null, period: 'custom' });
+    void this.refresh();
+  }
+
+  previewSprints(schedule: SprintSchedule): Promise<SprintPreview> {
+    return this.api.previewSprints(schedule);
   }
 
   private async loadPeriod(): Promise<void> {

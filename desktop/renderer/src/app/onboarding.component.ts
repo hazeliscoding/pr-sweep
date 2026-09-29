@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { BoardStore } from './board.store';
+import { IconComponent } from './ui/icon.component';
 
 /**
  * First-run overlay: shown until an org is configured and a GitHub token is
@@ -12,19 +13,24 @@ import { BoardStore } from './board.store';
   selector: 'app-onboarding',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [IconComponent],
   template: `
     @if (store.needsToken()) {
-      <div class="modal-overlay">
-        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
-          <h2 id="onboardTitle">Connect GitHub</h2>
-          <p>
-            The board needs your GitHub organization and permission to read its pull requests.
-            Credentials are stored encrypted on this machine and never leave it.
-          </p>
+      <div class="q-scrim">
+        <div class="q-modal" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
+          <header class="q-modal__head">
+            <h2 id="onboardTitle" class="q-modal__title">Connect GitHub</h2>
+            <p class="q-modal__desc">
+              PR Sweep reads your organization's pull requests. Your credentials are stored encrypted on
+              this machine and never leave it.
+            </p>
+          </header>
 
-          <div class="field">
-            GitHub organization
+          <div class="q-field">
+            <label class="q-field__label" for="onboard-org">GitHub organization</label>
             <input
+              id="onboard-org"
+              class="q-input q-input--mono"
               placeholder="your-github-org"
               [value]="org() || store.activeProfile()?.org || ''"
               (input)="org.set($any($event.target).value)"
@@ -34,46 +40,59 @@ import { BoardStore } from './board.store';
           @if (oauthAvailable()) {
             @if (userCode(); as code) {
               <div class="device-code">
-                <p>Enter this code at <a href="#" (click)="openVerify($event)">github.com/login/device</a> (it should have opened):</p>
-                <div class="code">{{ code }}</div>
-                <p class="muted">Waiting for you to authorize…</p>
+                <p>
+                  Enter this code at <a href="#" (click)="openVerify($event)">github.com/login/device</a>. It should
+                  have opened in your browser.
+                </p>
+                <div class="device-code__code">{{ code }}</div>
+                <p class="q-field__hint">Waiting for you to authorize…</p>
               </div>
             } @else {
-              <button class="btn-primary btn-block" [disabled]="verifying() || !org().trim() && !store.activeProfile()?.org" (click)="signIn()">
+              <button
+                class="q-btn q-btn--primary q-btn--block"
+                [disabled]="verifying() || (!org().trim() && !store.activeProfile()?.org)"
+                (click)="signIn()"
+              >
+                <q-icon name="log-in" />
                 {{ verifying() ? 'Starting…' : 'Sign in with GitHub' }}
               </button>
             }
-            <p class="muted alt">
+            <p class="q-modal__alt">
               or <a href="#" (click)="showToken($event)">use a personal access token</a>
             </p>
           }
 
           @if (!oauthAvailable() || tokenMode()) {
-            <ol>
+            <ol class="token-steps">
               <li>
-                Open
-                <a href="#" (click)="openTokenPage($event)">github.com/settings/tokens</a>
-                (Personal access tokens → Tokens classic).
+                Open <a href="#" (click)="openTokenPage($event)">github.com/settings/tokens</a> and choose
+                Tokens (classic).
               </li>
               <li>Generate a token with the <code>repo</code> and <code>read:org</code> scopes.</li>
-              <li>If the org uses SAML SSO: "Configure SSO" next to the token → authorize the org.</li>
+              <li>If the org uses SAML SSO, choose Configure SSO next to the token and authorize the org.</li>
             </ol>
-            <div class="token-row">
+            <div class="inline-row">
               <input
+                class="q-input q-input--mono token-input"
                 type="password"
                 placeholder="ghp_…"
+                aria-label="Personal access token"
                 [value]="token()"
                 (input)="token.set($any($event.target).value)"
                 (keydown.enter)="saveToken()"
               />
-              <button class="btn-primary" [disabled]="saving() || !tokenReady()" (click)="saveToken()">
+              <button class="q-btn q-btn--primary" [disabled]="saving() || !tokenReady()" (click)="saveToken()">
+                <q-icon name="key-round" />
                 {{ saving() ? 'Checking…' : 'Connect' }}
               </button>
             </div>
           }
 
           @if (error() ?? store.auth()?.error; as err) {
-            <p class="status error">{{ err }}</p>
+            <p class="q-inline-error" role="alert">
+              <q-icon name="circle-alert" />
+              {{ err }}
+            </p>
           }
         </div>
       </div>

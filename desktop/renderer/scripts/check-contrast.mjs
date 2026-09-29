@@ -33,7 +33,10 @@ const PAIRS = [
   ['warning-text', 'warning-subtle over bg-1', 4.5], // a review waiting too long
   ['warning-text', 'bg-0', 4.5], // the sprint risk line
   ['accent-text', 'bg-1', 4.5], // a focused PR title
-  ['text-1', 'accent-subtle over bg-0', 4.5], // a pressed filter chip
+  // Settings: bg-1 cards holding bg-0 tables; the onboarding dialog is bg-2.
+  ['text-1', 'accent-subtle over bg-0', 4.5], // a pressed filter chip, the "active" and "current" tags
+  ['critical-text', 'critical-subtle over bg-1', 4.5], // a danger button, hovered
+  ['text-1', 'bg-inset', 4.5], // the device sign-in code
   ['accent', 'bg-0', 3], // focus ring
   ['accent', 'bg-2', 3],
   ...['healthy', 'warning', 'critical', 'running'].flatMap((st) => [[st, 'bg-1', 3], [st, 'bg-2', 3]]), // status dots
