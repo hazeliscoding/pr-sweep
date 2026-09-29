@@ -1,0 +1,103 @@
+/* The board: health strip, filter bar, the Sweep and the status tables. */
+
+.health {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: var(--space-6);
+  background: var(--surface-panel);
+  border: var(--border-width) solid var(--border-hairline);
+  border-radius: var(--radius-3);
+}
+.health__cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-5) var(--space-6);
+}
+.health__cell + .health__cell { border-left: var(--border-width) solid var(--border-hairline); }
+.health__value { font: var(--text-metric); font-feature-settings: var(--tnum); color: var(--text-1); }
+.health__note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 17px;
+  font: var(--text-compact);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filters { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-5); margin-bottom: var(--space-8); }
+.filters__group { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.filters__group > .q-label { margin-right: var(--space-3); }
+.filters .q-search { margin-left: auto; }
+
+.board-section { margin-bottom: var(--space-9); }
+.board-section__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-5); min-height: 28px; margin-bottom: var(--space-4); }
+.board-section__title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+  font: var(--text-section-title);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-1);
+}
+.board-section__count { font: var(--text-data); color: var(--text-2); }
+.board-section__actions { display: inline-flex; gap: var(--space-3); margin-left: auto; }
+
+.sprint-risk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font: var(--text-compact);
+  font-weight: var(--weight-semibold);
+  color: var(--warning-text);
+}
+.sprint-risk--ok { color: var(--text-2); }
+
+/* Titles take the width that's left and truncate; the other columns fit their content. */
+.q-table .col-title { width: 100%; max-width: 0; }
+.title-cell { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.pr-title, .pr-link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-link {
+  padding: 0;
+  font: inherit;
+  color: var(--text-1);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.pr-link:hover, .pr-link:focus-visible { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.pr-link:focus-visible { box-shadow: var(--focus-ring); border-radius: var(--radius-1); }
+tr.clickable:hover .pr-title, tr.clickable:focus-visible .pr-title { color: var(--accent-text); }
+
+.q-table .col-ref { color: var(--text-2); }
+.q-table .col-author, .q-table .col-awaiting { color: var(--text-2); }
+.q-table .col-awaiting { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.q-table .age { color: var(--text-2); }
+.q-table .is-stale { color: var(--warning-text); }
+.q-table .is-stale .q-icon { vertical-align: -2px; margin-right: var(--space-1); }
+.delta-add { color: var(--healthy-text); }
+.delta-del { color: var(--critical-text); margin-left: var(--space-2); }
+
+.reason { display: inline-flex; align-items: center; gap: var(--space-3); }
+.reason__label { font-weight: var(--weight-semibold); }
+.reason__age { font: var(--text-data); color: var(--text-2); }
+.reason--hot .reason__label { color: var(--critical-text); }
+.reason--hot .q-dot { color: var(--critical); }
+.reason--warm .reason__label { color: var(--warning-text); }
+.reason--warm .q-dot { color: var(--warning); }
+.reason--cool .reason__label { color: var(--text-2); }
+.reason--cool .q-dot { color: var(--text-3); }
+
+/* Snoozed and quiet rows stay readable; a tag says why they're set apart. */
+.q-table tr.is-muted .pr-link, .q-table tr.is-muted .reason__label { color: var(--text-2); }
+.q-table tr.is-muted .reason .q-dot { color: var(--text-3); }
+
+.q-table .col-next { text-align: right; }
+.next-step { display: inline-flex; justify-content: flex-end; gap: var(--space-2); }

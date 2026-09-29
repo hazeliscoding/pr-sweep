@@ -28,6 +28,12 @@ const PAIRS = [
     ['text-1', `${st}-subtle over bg-0`, 4.5],
     ['text-2', `${st}-subtle over bg-0`, 4.5],
   ]),
+  // Board: tables and the health strip are bg-1 panels whose rows hover to bg-2.
+  ...['healthy', 'warning', 'critical', 'running'].map((st) => [`${st}-text`, 'bg-1', 4.5]), // reasons, CI, Δ, stale ages
+  ['warning-text', 'warning-subtle over bg-1', 4.5], // a review waiting too long
+  ['warning-text', 'bg-0', 4.5], // the sprint risk line
+  ['accent-text', 'bg-1', 4.5], // a focused PR title
+  ['text-1', 'accent-subtle over bg-0', 4.5], // a pressed filter chip
   ['accent', 'bg-0', 3], // focus ring
   ['accent', 'bg-2', 3],
   ...['healthy', 'warning', 'critical', 'running'].flatMap((st) => [[st, 'bg-1', 3], [st, 'bg-2', 3]]), // status dots

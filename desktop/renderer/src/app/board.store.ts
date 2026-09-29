@@ -100,6 +100,9 @@ export class BoardStore {
     this.applyFilters(this.result()?.merged ?? []).sort(byNewest((r) => r.mergedAt ?? r.updatedAt)),
   );
 
+  /** An author chip or the text filter is narrowing the board. */
+  readonly filtering = computed(() => this.authorFilter().size > 0 || this.search().trim() !== '');
+
   readonly openCount = computed(
     () => this.needsReview().length + this.changesRequested().length + this.approved().length,
   );
@@ -231,6 +234,11 @@ export class BoardStore {
     const next = new Set(this.authorFilter());
     if (!next.delete(login)) next.add(login);
     this.authorFilter.set(next);
+  }
+
+  clearFilters(): void {
+    this.authorFilter.set(new Set());
+    this.search.set('');
   }
 
   async saveToken(token: string): Promise<AuthStatus> {

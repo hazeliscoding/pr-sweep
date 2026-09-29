@@ -93,4 +93,7 @@ body { color: var(--text-1); }
   .loadbar::after { width: 100%; opacity: 0.6; animation: none; }
 }
 
-.main { flex: 1 1 auto; min-width: 0; padding: var(--space-6) var(--space-8); overflow: auto; }
+.main { flex: 1 1 auto; min-width: 0; padding: 0 var(--space-8) var(--space-6); overflow: auto; }
+/* The top gap is content, not padding: Chromium sticks table headers below a
+   scroll container's top padding, and rows would show through above them. */
+.main::before { content: ''; display: block; height: var(--space-6); }
