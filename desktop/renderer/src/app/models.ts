@@ -105,10 +105,45 @@ export interface Attention {
   href: string;
 }
 
-export interface SprintRisk {
-  /** 0 = the range ends today. */
-  endsInDays: number;
+/**
+ * The sprint's story for the health strip, worked out in main after every sweep
+ * (core/summary.ts). Team-wide: author chips, search and snoozes never change it.
+ */
+export interface SprintSummary {
+  /** Where today falls against the range. */
+  when: 'before' | 'during' | 'after';
+  /** Whole days from today to the range's last day, 0 on the last day; null without an end. */
+  daysLeft: number | null;
+  /** In the range's last two days, when PRs that aren't approved deserve a warning. */
+  endingSoon: boolean;
+  /** "Sep 17" or "Oct 1", with the year when it isn't this one. */
+  startLabel: string;
+  endLabel: string | null;
+  open: number;
+  /** Open PRs that aren't drafts and aren't approved. */
   notApproved: number;
+  /** Flagged and not quiet: the standup's Blocked plus Needs attention. */
+  needsAttention: number;
+  blocked: number;
+  /** Flagged but quiet, so left out of needsAttention. */
+  quiet: number;
+  merged: number;
+  /** Merged since the last working day began: "3 since Monday". */
+  mergedSince: number;
+  /** That day's name, or the range's start date when the range began after it. */
+  sinceLabel: string;
+  /** The last working day came before the range began, so "since" means since the start. */
+  sinceStart: boolean;
+  /** Median of merge time minus open time over the merged PRs; null when none merged. */
+  medianMergeMs: number | null;
+}
+
+/** What Copy standup put on the clipboard, for its confirmation. */
+export interface StandupCounts {
+  merged: number;
+  blocked: number;
+  attention: number;
+  review: number;
 }
 
 export interface PrRow {
@@ -149,7 +184,7 @@ export interface SweepResult {
   open: PrRow[];
   merged: PrRow[];
   queue: PrRow[];
-  sprintRisk: SprintRisk | null;
+  summary: SprintSummary | null;
 }
 
 /** Auto-update progress pushed from main; null = nothing in flight. */
@@ -184,6 +219,7 @@ export interface PrSweepApi {
   latestSweep(): Promise<SweepResult | null>;
   resolvePeriod(): Promise<ResolvedPeriod>;
   previewSprints(schedule: SprintSchedule): Promise<SprintPreview>;
+  copyStandup(result: SweepResult): Promise<StandupCounts>;
   syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number; attentionCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
   onUpdateState(cb: (state: UpdateState | null) => void): void;

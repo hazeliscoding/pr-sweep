@@ -31,7 +31,7 @@ const PAIRS = [
   // Board: tables and the health strip are bg-1 panels whose rows hover to bg-2.
   ...['healthy', 'warning', 'critical', 'running'].map((st) => [`${st}-text`, 'bg-1', 4.5]), // reasons, CI, Δ, stale ages
   ['warning-text', 'warning-subtle over bg-1', 4.5], // a review waiting too long
-  ['warning-text', 'bg-0', 4.5], // the sprint risk line
+  ['critical-text', 'bg-0', 4.5], // Copy standup's error line
   ['accent-text', 'bg-1', 4.5], // a focused PR title
   // Settings: bg-1 cards holding bg-0 tables; the onboarding dialog is bg-2.
   ['text-1', 'accent-subtle over bg-0', 4.5], // a pressed filter chip, the "active" and "current" tags

@@ -16,6 +16,13 @@
   padding: var(--space-5) var(--space-6);
 }
 .health__cell + .health__cell { border-left: var(--border-width) solid var(--border-hairline); }
+.health--with-action { grid-template-columns: repeat(5, minmax(0, 1fr)) auto; }
+.health__cell--action { justify-content: space-between; align-items: flex-start; }
+
+/* Says what Copy standup put on the clipboard. Always rendered, so screen readers hear it change. */
+.standup-status { margin: calc(-1 * var(--space-4)) 0 var(--space-6); font: var(--text-compact); color: var(--text-2); }
+.standup-status:empty { margin: 0; }
+.standup-status--error { color: var(--critical-text); }
 .health__value { font: var(--text-metric); font-feature-settings: var(--tnum); color: var(--text-1); }
 .health__note {
   display: flex;
@@ -48,16 +55,6 @@
 .board-section__count { font: var(--text-data); color: var(--text-2); }
 .board-section__actions { display: inline-flex; gap: var(--space-3); margin-left: auto; }
 
-.sprint-risk {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font: var(--text-compact);
-  font-weight: var(--weight-semibold);
-  color: var(--warning-text);
-}
-.sprint-risk--ok { color: var(--text-2); }
 
 /* Titles take the width that's left and truncate; the other columns fit their content. */
 .q-table .col-title { width: 100%; max-width: 0; }

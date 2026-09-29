@@ -7,7 +7,7 @@
   "main": "dist/main/main/main.js",
   "scripts": {
     "build:main": "tsc -p tsconfig.json",
-    "test": "node src/main/core/oauth.service.test.mjs && node src/main/core/config.service.test.mjs && node src/main/core/github.service.test.mjs && node src/main/core/snapshot.store.test.mjs && node src/main/core/attention.test.mjs && node src/main/core/tray.text.test.mjs && node src/main/core/fixture.test.mjs && node src/main/core/sprints.test.mjs && node renderer/scripts/checks.test.mjs",
+    "test": "node src/main/core/oauth.service.test.mjs && node src/main/core/config.service.test.mjs && node src/main/core/github.service.test.mjs && node src/main/core/snapshot.store.test.mjs && node src/main/core/attention.test.mjs && node src/main/core/tray.text.test.mjs && node src/main/core/fixture.test.mjs && node src/main/core/sprints.test.mjs && node src/main/core/summary.test.mjs && node src/main/core/standup.test.mjs && node renderer/scripts/checks.test.mjs",
     "start": "electron .",
     "package": "electron-builder",
     "package:win": "electron-builder --win",

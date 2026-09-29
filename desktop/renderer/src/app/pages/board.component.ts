@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { BoardStore } from '../board.store';
-import { Attention, AttentionReason, PrRow, SprintRisk } from '../models';
+import { Attention, AttentionReason, PrRow, SprintSummary } from '../models';
 import { CiStatusComponent } from '../ui/ci-status.component';
 import { IconComponent } from '../ui/icon.component';
 
@@ -28,19 +28,24 @@ interface BoardSection {
   emptyNote: string;
 }
 
-/** One cell of the health strip: a count, and a dot and a note that say whether it's fine. */
+/** One cell of the health strip: a number, and a dot and a note that say whether it's fine. */
 interface HealthCell {
   label: string;
-  count: number | null;
-  tone: 'healthy' | 'warning' | 'info' | null;
+  value: string | null;
+  tone: 'healthy' | 'warning' | 'critical' | 'info' | null;
   note: string;
 }
+
+const HEALTH_LABELS = ['Days left', 'Open', 'Needs attention', 'Merged', 'Time to merge'];
+/** How long the Copy standup confirmation stays up. */
+const COPIED_MS = 6000;
 
 const SKELETON_ROWS = [1, 2, 3];
 const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
 
 /**
- * The dashboard: a health strip of counts, the filter bar (author chips,
+ * The dashboard: the sprint's story in a health strip, with Copy standup,
+ * then the filter bar (author chips,
  * drafts, free text), the Sweep (open PRs the attention engine flagged, each
  * with its reason and next step), then one dense table per status: my queue,
  * needs review, changes requested, approved, merged. All slicing is
@@ -53,11 +58,12 @@ const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
   imports: [NgTemplateOutlet, CiStatusComponent, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="health" aria-label="Board health">
+    <!-- The whole team's numbers: author chips, search and snoozes don't change them. -->
+    <section class="health" [class.health--with-action]="canCopyStandup()" aria-label="Sprint health">
       @for (cell of health(); track cell.label) {
         <div class="health__cell">
           <span class="q-label">{{ cell.label }}</span>
-          <span class="health__value">{{ cell.count ?? '–' }}</span>
+          <span class="health__value">{{ cell.value ?? '–' }}</span>
           <span class="health__note">
             @if (cell.tone) {
               <span class="q-dot q-dot--{{ cell.tone }}" aria-hidden="true"></span>
@@ -66,7 +72,18 @@ const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
           </span>
         </div>
       }
+      @if (canCopyStandup()) {
+        <div class="health__cell health__cell--action">
+          <span class="q-label">Standup</span>
+          <button class="q-btn" (click)="copyStandup()">
+            <q-icon [name]="copied() ? 'check' : 'clipboard-copy'" />
+            {{ copied() ? 'Copied' : 'Copy standup' }}
+          </button>
+          <span class="health__note">For Teams, Slack or Discord</span>
+        </div>
+      }
     </section>
+    <p class="standup-status" [class.standup-status--error]="standupFailed()" role="status">{{ standupMessage() }}</p>
 
     <div class="filters">
       <div class="filters__group" role="group" aria-labelledby="authors-label">
@@ -119,12 +136,6 @@ const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
             <span class="board-section__count">{{ store.sweep().length }}</span>
           }
         </h2>
-        @if (store.sprintRisk(); as risk) {
-          <p class="sprint-risk" [class.sprint-risk--ok]="risk.notApproved === 0">
-            <q-icon [name]="risk.notApproved === 0 ? 'circle-check' : 'triangle-alert'" [size]="12" />
-            {{ sprintLine(risk) }}
-          </p>
-        }
         <span class="board-section__actions">
           @if (store.quiet().length > 0) {
             <button
@@ -425,22 +436,58 @@ export class BoardComponent {
   });
 
   readonly health = computed<HealthCell[]>(() => {
-    const labels = ['My queue', 'Needs review', 'Changes requested', 'Approved', 'Merged'];
-    if (!this.store.result()) return labels.map((label) => ({ label, count: null, tone: null, note: '' }));
+    const s = this.store.summary();
+    if (!s) return HEALTH_LABELS.map((label) => ({ label, value: null, tone: null, note: '' }));
+    const [days, open, attention, merged, time] = HEALTH_LABELS;
     const sprint = this.store.period()?.sprint;
     return [
-      this.queueCell(labels[0], this.store.queue()),
-      this.openCell(labels[1], this.store.needsReview(), 'Nothing waiting on review'),
-      this.openCell(labels[2], this.store.changesRequested(), 'Nothing sent back'),
-      this.openCell(labels[3], this.store.approved(), 'Nothing waiting to merge'),
+      { label: days, ...daysLeft(s) },
       {
-        label: labels[4],
-        count: this.store.merged().length,
+        label: open,
+        value: String(s.open),
+        // The sprint-end warning: what isn't approved, in the sprint's last two days.
+        tone: s.notApproved === 0 ? 'healthy' : s.endingSoon ? 'warning' : 'info',
+        note:
+          s.notApproved > 0
+            ? `${s.notApproved} not approved${s.endingSoon ? ' yet' : ''}`
+            : s.open > 0
+              ? 'All approved'
+              : 'Nothing open',
+      },
+      {
+        label: attention,
+        value: String(s.needsAttention),
+        tone: s.blocked > 0 ? 'critical' : s.needsAttention > 0 ? 'warning' : 'healthy',
+        note:
+          s.blocked > 0
+            ? `${s.blocked} blocked`
+            : s.needsAttention > 0
+              ? 'None blocked'
+              : s.quiet > 0
+                ? `${s.quiet} quiet, not counted`
+                : 'Nothing flagged',
+      },
+      {
+        label: merged,
+        value: String(s.merged),
         tone: 'info',
-        note: sprint ? `In ${sprint.name}` : 'In this range',
+        note: s.when === 'during' ? `${s.mergedSince} since ${s.sinceLabel}` : sprint ? `In ${sprint.name}` : 'In this range',
+      },
+      {
+        label: time,
+        value: s.medianMergeMs === null ? null : duration(s.medianMergeMs),
+        tone: null,
+        note: s.merged ? `Median of ${s.merged} PR${s.merged === 1 ? '' : 's'}` : 'Nothing merged yet',
       },
     ];
   });
+
+  /** A standup covers today, so it's offered only while the board shows a period that includes it. */
+  readonly canCopyStandup = computed(() => this.store.summary()?.when === 'during');
+  readonly copied = signal(false);
+  readonly standupMessage = signal('');
+  readonly standupFailed = signal(false);
+  private copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Active Sweep rows, then the snoozed and quiet ones when they're revealed. */
   readonly sweepRows = computed(() => [
@@ -504,14 +551,6 @@ export class BoardComponent {
     return h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`;
   }
 
-  sprintLine(risk: SprintRisk): string {
-    const when =
-      risk.endsInDays === 0 ? 'today' : risk.endsInDays === 1 ? 'tomorrow' : `in ${risk.endsInDays} days`;
-    if (risk.notApproved === 0) return `Sprint ends ${when}. Every open PR is approved.`;
-    const prs = risk.notApproved === 1 ? '1 open PR isn\'t' : `${risk.notApproved} open PRs aren't`;
-    return `Sprint ends ${when}: ${prs} approved yet.`;
-  }
-
   ago(pr: PrRow): string {
     const min = Math.max(0, Math.round((Date.now() - Date.parse(pr.mergedAt ?? pr.updatedAt)) / 60000));
     if (min < 1) return 'just now';
@@ -520,31 +559,43 @@ export class BoardComponent {
     return h < 48 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
   }
 
-  /** Warn when anything waited past the stale threshold; otherwise say how old the oldest is. */
-  private openCell(label: string, rows: PrRow[], none: string): HealthCell {
-    if (rows.length === 0) return { label, count: 0, tone: 'healthy', note: none };
-    const days = this.staleDays();
-    const stale = rows.filter((r) => this.isStale(r)).length;
-    if (stale > 0) return { label, count: rows.length, tone: 'warning', note: `${stale} untouched for ${days}+ days` };
-    const oldest = rows.reduce((a, r) => (r.updatedAt < a.updatedAt ? r : a));
-    return {
-      label,
-      count: rows.length,
-      tone: days > 0 ? 'healthy' : 'info',
-      note: `All active in the last ${this.age(oldest.updatedAt)}`,
-    };
+  async copyStandup(): Promise<void> {
+    clearTimeout(this.copiedTimer);
+    try {
+      const c = await this.store.copyStandup();
+      const attention = `${c.attention} ${c.attention === 1 ? 'needs' : 'need'} attention`;
+      this.standupFailed.set(false);
+      this.standupMessage.set(`Copied: ${c.merged} merged, ${c.blocked} blocked, ${attention}, ${c.review} in review.`);
+      this.copied.set(true);
+    } catch {
+      this.standupFailed.set(true);
+      this.standupMessage.set("Couldn't copy the standup. Try again after the next refresh.");
+      this.copied.set(false);
+    }
+    this.copiedTimer = setTimeout(() => {
+      this.copied.set(false);
+      this.standupMessage.set('');
+    }, COPIED_MS);
   }
+}
 
-  private queueCell(label: string, rows: PrRow[]): HealthCell {
-    if (rows.length === 0) return { label, count: 0, tone: 'healthy', note: 'Nothing waiting on you' };
-    const hot = rows.filter((r) => this.isWaitHot(r)).length;
-    if (hot > 0) return { label, count: rows.length, tone: 'warning', note: `${hot} waiting ${this.staleDays()}+ days` };
-    const requested = rows.map((r) => r.reviewRequestedAt).filter((t): t is string => !!t).sort();
-    return {
-      label,
-      count: rows.length,
-      tone: 'info',
-      note: requested.length ? `Longest wait ${this.age(requested[0])}` : 'Waiting on you',
-    };
-  }
+/** The Days left cell: a count while the period runs, otherwise when it starts or ended. */
+function daysLeft(s: SprintSummary): Omit<HealthCell, 'label'> {
+  if (s.when === 'before') return { value: null, tone: 'info', note: `Starts ${s.startLabel}` };
+  if (s.when === 'after') return { value: null, tone: 'info', note: `Ended ${s.endLabel}` };
+  if (s.daysLeft === null) return { value: null, tone: 'info', note: 'No end date' };
+  return {
+    value: String(s.daysLeft),
+    tone: s.endingSoon && s.notApproved > 0 ? 'warning' : 'info',
+    note: s.daysLeft === 0 ? 'Ends today' : `Ends ${s.endLabel}`,
+  };
+}
+
+/** "35m", "14h", "1.8d". */
+function duration(ms: number): string {
+  const min = Math.round(ms / 60000);
+  if (min < 60) return `${min}m`;
+  const hours = min / 60;
+  if (hours < 48) return `${Math.round(hours)}h`;
+  return `${Number((hours / 24).toFixed(1))}d`;
 }
