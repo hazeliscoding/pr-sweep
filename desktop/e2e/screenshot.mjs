@@ -3,6 +3,9 @@
  *
  *   node e2e/screenshot.mjs --fixtures [busy,calm,…]
  *     Every fixture state (e2e/fixtures) in both themes. No token, no network.
+ *   node e2e/screenshot.mjs --readme
+ *     The README images: the busy board in both themes, one 1440×900 window at
+ *     2x, written to docs/screenshots/board.png and board-dark.png.
  *   GH_TOKEN=$(gh auth token) PRSWEEP_ORG=<org> [PRSWEEP_AUTHORS=a,b] node e2e/screenshot.mjs
  *     The live board for an org, in both themes.
  *
@@ -49,7 +52,7 @@ async function launch(config, env) {
     await app.close();
     rmSync(userData, { recursive: true, force: true });
   };
-  return { win, close };
+  return { win, close, app };
 }
 
 function configFor(profile) {
@@ -179,6 +182,29 @@ async function shootLive() {
   }
 }
 
+/** The README's board: what fits in a window, drawn at 2x so it stays sharp on GitHub. */
+async function shootReadme() {
+  const read = (n) => JSON.parse(readFileSync(new URL(`./fixtures/${n}.json`, import.meta.url), 'utf8'));
+  const fixture = loadFixture('busy', read, Date.now());
+  const { win, close, app } = await launch(configFor(fixture.profile), { PRSWEEP_FIXTURE: 'busy' });
+  const out = fileURLToPath(new URL('../../docs/screenshots/', import.meta.url));
+  try {
+    await win.setViewportSize({ width: 2880, height: 1800 });
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(2));
+    await boardReady(win);
+    for (const theme of ['light', 'dark']) {
+      await win.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
+      await win.waitForTimeout(300);
+      await win.screenshot({ path: join(out, theme === 'light' ? 'board.png' : 'board-dark.png') });
+    }
+  } finally {
+    await close();
+  }
+  console.log(`README screenshots in ${out}`);
+  process.exit(0);
+}
+
+if (process.argv.includes('--readme')) await shootReadme();
 const i = process.argv.indexOf('--fixtures');
 if (i >= 0) {
   const list = process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1].split(',') : Object.keys(STATES);
