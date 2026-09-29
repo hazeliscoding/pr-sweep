@@ -150,7 +150,15 @@ const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
         </span>
       </header>
       @if (!store.result()) {
-        <ng-container *ngTemplateOutlet="skeleton; context: { rows: sweepSkeleton }" />
+        @if (store.loading()) {
+          <ng-container *ngTemplateOutlet="skeleton; context: { rows: sweepSkeleton }" />
+        } @else {
+          <div class="q-empty">
+            <q-icon name="refresh-cw" [size]="20" />
+            <p class="q-empty__title">No pull requests yet</p>
+            <p class="q-empty__meta">Refresh to sweep this period.</p>
+          </div>
+        }
       } @else if (sweepRows().length > 0) {
         <div class="q-table-wrap">
           <table class="q-table" data-density="compact">
@@ -258,7 +266,8 @@ const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
       }
     </section>
 
-    @for (section of sections(); track section.id) {
+    <!-- Before the first sweep, the status tables only show while one is loading. -->
+    @for (section of store.result() || store.loading() ? sections() : []; track section.id) {
       <section class="board-section" [attr.aria-labelledby]="section.id">
         <header class="board-section__head">
           <h2 [id]="section.id" class="board-section__title">
