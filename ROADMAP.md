@@ -200,7 +200,6 @@ fixture sweep removes the token-secret blocker*
 - [x] Code signing (Azure Trusted Signing in the release workflow, same signing account as ez-money)
 - [x] Linux build: AppImage with auto-update, built and published by the release workflow
 - [x] Performance for orgs with huge PR volume: auto-refreshes patch the cached sweep
-
   incrementally (only PRs updated since last time), date windows split automatically
   past GitHub's 1000-result search cap, and rate limits retry with the server-stated wait
 
@@ -210,19 +209,15 @@ Theme: the board tells you what actually needs *action*, not just what exists.
 
 - [x] CI status dot on every open PR (latest commit's check rollup: green/red/amber)
 - [x] Author-side notifications: toast when your PR is approved, gets changes
-
   requested, or starts failing CI (reviewer-side queue toasts already existed)
 - [x] Review-wait badges in "My queue": how long each PR has been waiting on you,
-
   flagged past the stale threshold
 
 ### v0.10.1–v0.10.4: Update UX and fixes ✅
 
 - [x] Periodic update checks (launch + every 6 hours), so close-to-tray no longer delays
-
   updates until the next full restart
 - [x] In-app header pill with download progress and a Restart button (replaces the
-
   easily-missed OS toast), plus taskbar progress while downloading
 - [x] "Restart to update" in the tray menu, reachable even with the window hidden
 - [x] Fetch `statusCheckRollup` and `timelineItems` only in the queries whose rows show them (v0.10.2)
@@ -235,18 +230,14 @@ Theme: every PR that needs a human shows up once, with the reason and the next s
 the `release/v0.11` branch.
 
 - [x] Sweep timing line under `PRSWEEP_DEBUG`: full or auto, duration, searches and retries.
-
   Record the v0.10.4 baseline with it on the electron team and whole-org profiles, 5 full and
   5 auto refreshes each, taking the median.
 - [x] Snapshot schema version (`schema: 2`). `SnapshotStore.get` returns null for an older
-
   schema and a sweep never patches one, so the first refresh after an update is a full one.
 - [x] Merged search in weekly windows, fetched in parallel with at most 4 in flight. Each window
-
   still splits itself past 1000 results. *Measured: the team profile's full sweep dropped to
   10.8 s median (9.7–13.4 s, plus one 69.9 s run that hit a retry), from 28.9 s.*
 - [x] Page-size fallback: a search page that fails with 502 or 504, or arrives as a 200 with a
-
   cut-off body, is re-sent at 50, then 25, before the normal retries. Re-sending the same
   request first would only add backoff: those are timeouts on queries too heavy to answer.
   *Measured: the team profile's full sweep takes 8.9 s median, and the whole-org view
@@ -268,7 +259,6 @@ the `release/v0.11` branch.
   at 170 s median: its carried-over PRs add search requests, and with them more rate-limit
   waits.*
 - [x] Attention engine: `desktop/src/main/core/attention.ts`, a pure function with a test for each
-
   reason at its boundary. `prs:fetch` runs it over the open rows after every sweep, full or
   incremental. It also returns `sprintRisk`. Editing `staleDays` triggers a refresh (an
   incremental one, so it's usually a single request). Schema 4. *On a live electron team
@@ -293,25 +283,19 @@ the `release/v0.11` branch.
   by most severe reason, then longest-standing first.
 
 - [x] Sweep section at the top of the board: PR, CI, title (a link), why (the most severe reason
-
   and its age, plus chips for the others), author, next step and snooze. Rows aren't clickable
   as a whole. Author chips and the text filter apply. When the range ends within 2 days, the
   header says how many open PRs aren't approved yet. Empty state: "Nothing needs attention."
-- [x] Snooze per row, plus "Show snoozed" to reveal and unsnooze. \*Checked through the built
-
+- [x] Snooze per row, plus "Show snoozed" to reveal and unsnooze. *Checked through the built
   app: hiding, surviving a relaunch, reveal and unsnooze, and each way a snooze ends (the PR
-  changes, a worse reason, a new day).\*
+  changes, a worse reason, a new day).*
 - [x] Quiet rows: `isQuiet` in the engine, `quiet` on each row (schema 5), and a "Show quiet"
-
   toggle. The tray count leaves them out.
 - [x] Tray: a "N need attention (team)" menu line and tooltip fallback, with `attentionCount`
-
   added to `syncTray`. Settings: the stale-threshold help text mentions the Sweep.
 - [x] `chore(release): v0.11.0` with its notes in `docs/releases/v0.11.0.md`, then mark the pull
-
   request ready, merge it, and tag `v0.11.0`.
 - [x] Update an installed v0.10.4 through the auto-updater and check that the first refresh fills
-
   every row without a manual Refresh.
 
 **Done when:** opening the app shows a short list where every row says why it's there and what
@@ -325,47 +309,37 @@ on the `release/v0.12` branch.
 
 - [x] Roadmap, `AGENTS.md` and a draft pull request for the milestone.
 - [x] Fixture mode (`PRSWEEP_FIXTURE=<name>`, unpackaged builds only): a canned sweep run through
-
   the real attention engine, with no network. Fixtures `busy`, `calm`, `empty`, `error`,
   `onboarding`, `update` and `loading` use relative times. A loader in `core/` has tests,
   including one that `busy` triggers all nine attention reasons.
 - [x] The screenshot script shoots every fixture state in both themes, each run in its own
-
   throwaway `--user-data-dir`. "Before" screenshots of the v0.11 UI go on the pull request.
 - [x] Foundation: Quorum tokens with the AA fix, bundled Manrope and IBM Plex Mono with their OFL
-
   texts, and vendored Lucide icons with the ISC notice. `check-contrast` and `check-assets`
   run in CI, each with a positive control. *The fonts take the renderer build from 329 KB to
   949 KB.*
 - [x] Sprints core: `core/sprints.ts` (schedule math, the current sprint, period resolution),
-
   `sprints` and `period` on each profile with a migration, and a `period:resolve` IPC call.
 - [x] Shell: top bar with the sprint picker, freshness indicator, loading bar, tabs, theme
-
   toggle, update pill and error banner.
 - [x] Board: health strip, filter bar, tables with density, CI status badges, Sweep rows, empty
-
   states and skeleton rows. *CI reads as a word (Pass, Fail, Running) next to its dot.
   Snoozed and quiet rows get a tag instead of being faded, so they keep AA contrast.*
 - [x] Settings, with a Sprints section, and onboarding. The old stylesheet is deleted and the
-
   no-raw-colors rule switches on. *The Sprints card previews the sprints around today through a
   `sprints:preview` call, so the renderer still does no sprint date math. Screenshots add
   `settings-setup` and `onboarding-token`.*
 - [x] Voice pass over every string, a Design section in `AGENTS.md`, and README screenshots from
-
   the `busy` fixture. *The screens were written in Quorum's voice as they were restyled; the
   pass fixed the main process's setup errors and one next step ("Mark ready or close").
   `screenshot.mjs --readme` renders the README images at 2x.*
 - [x] Review: before and after screenshots of every state in both themes, a keyboard pass, the
-
   v0.11 snooze, quiet and tray checks rerun on fixtures, and the renderer bundle size
   recorded. *All checks pass. The renderer is 987 KB (329 KB in v0.11), fonts 571 KB of it.
   The pass found two things, both fixed: Ctrl+R blanked the window (a v0.11 bug: the
   `./` base href dropped `index.html` from the router's URLs), and the Sprints/Custom switch
   claimed to be radios without arrow keys, so it's toggle buttons now.*
 - [ ] `chore(release): v0.12.0` with its notes, then mark the pull request ready, merge it, and
-
   tag `v0.12.0`.
 
 **Done when:** every fixture state is restyled in both themes, with before and after screenshots
@@ -379,13 +353,10 @@ the README shows the new screenshots.
 Theme: the board opens with how the sprint is going, and turns that into a standup in one click.
 
 - [ ] The v0.12 health strip gains the sprint's story: merged, open, needs attention, and days
-
   left in the sprint.
 - [ ] Median time to merge for PRs merged in the sprint, from `mergedAt − createdAt`. No new
-
   fields.
 - [ ] **Copy standup as Markdown**: merged since the last working day, in review, blocked
-
   (CI failing, changes requested, conflicts), needs attention.
 - [ ] No per-person numbers anywhere.
 
@@ -398,10 +369,8 @@ Theme: a feature that spans repos reads as one piece of work.
 
 - [ ] Fetch `headRefName` (a cheap scalar field).
 - [ ] Group open and merged PRs by a ticket key such as `ABC-123`, found in the title or the
-
   branch name. PRs without a key render as they do today.
 - [ ] Per-profile on/off toggle. It has to survive config migration and profile
-
   export/import. The key pattern stays built in unless dogfooding needs a custom one.
 - [ ] A group shows each PR's state and the group's most severe attention reason.
 
@@ -412,10 +381,8 @@ Theme: a feature that spans repos reads as one piece of work.
 Theme: nothing new. Make what exists boringly reliable.
 
 - [ ] First-run, empty, loading and error states, checked end to end. That includes the
-
   SSO-blind token and the pending OAuth-app approval.
 - [ ] The screenshot script runs in CI against the fixture sweep (under `xvfb-run`), with no
-
   token secret needed. This is the item deferred from v0.8.
 - [ ] README repositioned around the sprint pitch and the 1.0 promise.
 - [ ] Config migration and profile export/import tested with every setting added since v0.11.
@@ -425,7 +392,6 @@ Theme: nothing new. Make what exists boringly reliable.
 ## v1.0: Stable
 
 - [ ] v0.11 through v0.15 each reached installed copies (Windows installer and Linux AppImage)
-
   through the auto-updater, with no manual reinstall.
 - [ ] The 1.0 promise holds.
 
