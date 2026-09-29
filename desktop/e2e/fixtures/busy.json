@@ -4,7 +4,8 @@
     "authors": ["dana", "lee", "sam", "priya", "jo"],
     "range": { "start": "-12d", "end": "+2d" },
     "includeDrafts": true,
-    "staleDays": 5
+    "staleDays": 5,
+    "sprints": { "pattern": "Sprint {n}", "first": { "number": 24, "start": "-12d" }, "lengthDays": 15 }
   },
   "open": [
     { "repo": "api", "number": 482, "title": "Refresh OAuth tokens before they expire", "author": "dana", "ci": "failure", "createdAt": "-1d", "updatedAt": "-5h", "lastCommitAt": "-7h", "requestedReviewers": ["lee"], "comments": 4, "additions": 212, "deletions": 38 },

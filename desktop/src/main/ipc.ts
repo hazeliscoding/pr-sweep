@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { annotate } from './core/attention';
 import { activeProfile, ConfigService } from './core/config.service';
 import { Fixture } from './core/fixture';
+import { localDate, resolvePeriod } from './core/sprints';
 import { GithubService, SweepStats } from './core/github.service';
 import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
 import { pollForToken, requestDeviceCode } from './core/oauth.service';
@@ -81,6 +82,7 @@ export function registerIpc(services: Services): void {
     }
   });
   // Fixture mode starts empty, so the first sweep's loading state is visible.
+  ipcMain.handle('period:resolve', () => resolvePeriod(activeProfile(services.config.get()), localDate()));
   ipcMain.handle('prs:latest', () => (services.fixture ? null : services.snapshots.get()));
 
   ipcMain.handle('shell:open', (_e, url: string) => {

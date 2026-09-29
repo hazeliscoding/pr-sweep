@@ -16,6 +16,54 @@ export interface DateRange {
 }
 
 /**
+ * A profile's sprint schedule. Every sprint is computed from it (core/sprints.ts);
+ * none is stored, so "Current" rolls over by itself.
+ */
+export interface SprintSchedule {
+  /** Name pattern; {n} becomes the sprint number: "Sprint {n}". */
+  pattern: string;
+  /** The first sprint: its number and start date (local yyyy-mm-dd). */
+  first: { number: number; start: string };
+  /** Days per sprint, 1–60. */
+  lengthDays: number;
+  /** One-off lengths by sprint number; later sprints shift to follow. */
+  lengths: Record<number, number>;
+  /** One-off names by sprint number. */
+  names: Record<number, string>;
+}
+
+/** What a profile's board looks at: today's sprint, a pinned sprint, or its own date range. */
+export type Period = 'current' | { sprint: number } | 'custom';
+
+export interface Sprint {
+  number: number;
+  name: string;
+  /** First and last day, local yyyy-mm-dd, both included. */
+  start: string;
+  end: string;
+}
+
+/** A profile's period resolved against today by the main process (see period:resolve). */
+export interface ResolvedPeriod {
+  kind: 'sprint' | 'custom';
+  /** "Sprint 24 · Sep 14–27", "Sep 17 – Oct 1" or "Since Sep 17". */
+  label: string;
+  /** What the sweep covers: the sprint's days, or the custom range. */
+  range: DateRange;
+  /** The sprint shown, when kind is 'sprint'. */
+  sprint: Sprint | null;
+  /** The sprint shown is the one containing today. */
+  isCurrent: boolean;
+  /** Neighbours for the picker's arrows; null before the first sprint. */
+  previous: Sprint | null;
+  next: Sprint | null;
+  /** The sprint containing today, if the schedule has started. */
+  current: Sprint | null;
+  /** False until the profile has a sprint schedule. */
+  hasSchedule: boolean;
+}
+
+/**
  * A saved board definition — "which org + team + window am I looking at". The
  * shareable unit: exporting config exports profiles (never tokens or machine
  * preferences), so one person can configure the team's view and hand it out.
@@ -31,6 +79,9 @@ export interface Profile {
   includeDrafts: boolean;
   /** Flag open PRs untouched for this many days. 0 disables. */
   staleDays: number;
+  /** Null until the team sets one up in Settings. */
+  sprints: SprintSchedule | null;
+  period: Period;
 }
 
 export type ProfilePatch = Partial<Omit<Profile, 'id'>>;
@@ -181,6 +232,8 @@ export interface PrSweepApi {
   fetchPrs(range: DateRange, mode?: 'full' | 'auto'): Promise<SweepResult>;
   /** Last sweep cached on disk, or null — for instant boot before the live refresh lands. */
   latestSweep(): Promise<SweepResult | null>;
+  /** The active profile's period (sprint or custom range) resolved against today. */
+  resolvePeriod(): Promise<ResolvedPeriod>;
   /**
    * Push the latest sweep's tray-relevant slices: the review queue (counts +
    * review-request toasts), the viewer's own open PRs (approval / changes-

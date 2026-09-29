@@ -27,6 +27,7 @@ const api: PrSweepApi = {
   installUpdate: () => ipcRenderer.invoke('update:install'),
   fetchPrs: (range, mode) => ipcRenderer.invoke('prs:fetch', range, mode),
   latestSweep: () => ipcRenderer.invoke('prs:latest'),
+  resolvePeriod: () => ipcRenderer.invoke('period:resolve'),
   syncTray: (sync) => ipcRenderer.invoke('tray:sync', sync),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   exportProfiles: () => ipcRenderer.invoke('config:export'),

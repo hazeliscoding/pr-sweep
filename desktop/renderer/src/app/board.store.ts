@@ -276,6 +276,8 @@ export class BoardStore {
       range: active?.range ?? { start: new Date().toISOString().slice(0, 10), end: null },
       includeDrafts: false,
       staleDays: active?.staleDays ?? 5,
+      sprints: active?.sprints ?? null,
+      period: active?.sprints ? 'current' : 'custom',
     };
     const next = { ...cfg, profiles: [...cfg.profiles, profile], activeProfileId: profile.id };
     this.config.set(next);

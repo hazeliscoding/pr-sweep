@@ -6,7 +6,7 @@
  * Rows list only what matters to them; everything else gets a default. Pure:
  * the caller supplies how a fixture name is read.
  */
-import { PrRow, ReviewBucket, UpdateState } from '../../shared/types';
+import { Period, PrRow, ReviewBucket, SprintSchedule, UpdateState } from '../../shared/types';
 
 export interface FixtureProfile {
   org: string;
@@ -14,6 +14,10 @@ export interface FixtureProfile {
   range: { start: string; end: string | null };
   includeDrafts: boolean;
   staleDays: number;
+  /** A schedule's first start may be relative too. */
+  sprints: SprintSchedule | null;
+  /** Defaults to 'current' when there's a schedule. */
+  period: Period;
 }
 
 export interface Fixture {
@@ -69,6 +73,8 @@ export function loadFixture(name: string, read: (name: string) => unknown, now: 
   const range = (profile.range ?? {}) as Json;
   if (typeof range.start !== 'string') throw new Error(where('profile.range.start is required'));
   const org = String(profile.org ?? '');
+  const sprints = profile.sprints as Json | undefined;
+  const first = (sprints?.first ?? {}) as Json;
   const rows = (key: 'open' | 'merged' | 'queue', bucket: ReviewBucket): PrRow[] =>
     ((raw[key] ?? []) as Json[]).map((r, i) => toRow(r, `${key}[${i}]`, org, bucket, now, where));
   return {
@@ -81,6 +87,16 @@ export function loadFixture(name: string, read: (name: string) => unknown, now: 
       },
       includeDrafts: Boolean(profile.includeDrafts),
       staleDays: typeof profile.staleDays === 'number' ? profile.staleDays : 5,
+      sprints: sprints
+        ? {
+            pattern: String(sprints.pattern ?? 'Sprint {n}'),
+            first: { number: Number(first.number), start: relativeDate(String(first.start), now) },
+            lengthDays: Number(sprints.lengthDays),
+            lengths: (sprints.lengths ?? {}) as Record<number, number>,
+            names: (sprints.names ?? {}) as Record<number, string>,
+          }
+        : null,
+      period: (profile.period as Period | undefined) ?? (sprints ? 'current' : 'custom'),
     },
     auth: raw.auth === 'no-token' ? 'no-token' : 'signed-in',
     sweep: { open: rows('open', 'needs-review'), merged: rows('merged', 'merged'), queue: rows('queue', 'needs-review') },

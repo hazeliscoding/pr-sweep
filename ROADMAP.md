@@ -302,7 +302,7 @@ on the `release/v0.12` branch.
       texts, and vendored Lucide icons with the ISC notice. `check-contrast` and `check-assets`
       run in CI, each with a positive control. *The fonts take the renderer build from 329 KB to
       949 KB.*
-- [ ] Sprints core: `core/sprints.ts` (schedule math, the current sprint, period resolution),
+- [x] Sprints core: `core/sprints.ts` (schedule math, the current sprint, period resolution),
       `sprints` and `period` on each profile with a migration, and a `period:resolve` IPC call.
 - [ ] Shell: top bar with the sprint picker, freshness indicator, loading bar, tabs, theme
       toggle, update pill and error banner.

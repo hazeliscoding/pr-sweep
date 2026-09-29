@@ -8,6 +8,7 @@ import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import { annotate } from '../../../dist/main/main/core/attention.js';
 import { loadFixture, relativeDate, relativeTime } from '../../../dist/main/main/core/fixture.js';
+import { localDate as today, resolvePeriod } from '../../../dist/main/main/core/sprints.js';
 
 const NOW = Date.parse('2026-09-29T15:00:00Z');
 const HOUR = 3_600_000;
@@ -65,6 +66,26 @@ assert.throws(
   /bad: open\[0\]\.bucket "stuck" is not one of/,
 );
 
+// --- a sprint schedule passes through, its first start relative; the period defaults to current ---
+{
+  const f = loadFixture(
+    'sprinting',
+    read({
+      sprinting: {
+        profile: {
+          org: 'acme', authors: [], range: { start: '-12d', end: null },
+          sprints: { pattern: 'Sprint {n}', first: { number: 24, start: '-12d' }, lengthDays: 15 },
+        },
+      },
+    }),
+    NOW,
+  );
+  assert.deepEqual(f.profile.sprints, {
+    pattern: 'Sprint {n}', first: { number: 24, start: localDate(NOW - 12 * 24 * HOUR) }, lengthDays: 15, lengths: {}, names: {},
+  });
+  assert.equal(f.profile.period, 'current');
+}
+
 // --- extends: the base fixture, with the extending one's fields on top ---
 {
   const f = loadFixture(
@@ -84,9 +105,13 @@ assert.throws(
 {
   const files = (name) => JSON.parse(readFileSync(new URL(`../../../e2e/fixtures/${name}.json`, import.meta.url), 'utf8'));
   const f = loadFixture('busy', files, Date.now());
+  // busy runs on a sprint schedule: the current sprint ends in two days.
+  const period = resolvePeriod({ id: 'x', name: 'x', ...f.profile }, today());
+  assert.equal(period.kind, 'sprint');
+  assert.equal(period.isCurrent, true);
   const judged = annotate(
-    { schema: 0, fetchedAt: '', org: f.profile.org, range: f.profile.range, ...f.sweep, sprintRisk: null },
-    { now: Date.now(), staleDays: f.profile.staleDays, rangeEnd: f.profile.range.end },
+    { schema: 0, fetchedAt: '', org: f.profile.org, range: period.range, ...f.sweep, sprintRisk: null },
+    { now: Date.now(), staleDays: f.profile.staleDays, rangeEnd: period.range.end },
   );
   const reasons = new Set(judged.open.flatMap((r) => r.attention.map((a) => a.reason)));
   assert.deepEqual(

@@ -68,6 +68,9 @@ organization. It ships for Windows and Linux.
   "needs attention". `prs:fetch` runs it over every open row after every sweep, cached rows
   included. The Sweep section, the tray line and the sprint summary read its output; the
   renderer never decides on its own whether a PR needs attention.
+- Sprints are computed, never stored: a profile keeps a schedule (`sprints`) and a `period`
+  (`'current'`, a pinned `{ sprint }` or `'custom'`), and `core/sprints.ts` resolves them against
+  today through `period:resolve`. The renderer never does sprint date math itself.
 - Workflow health, not human performance: no per-person counts, leaderboards or review stats.
 - No AI features before 1.0.
 - Windows and Linux only. macOS is not planned.
