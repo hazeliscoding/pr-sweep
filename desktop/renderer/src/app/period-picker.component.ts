@@ -18,11 +18,11 @@ import { IconComponent } from './ui/icon.component';
     @if (store.period(); as p) {
       <div class="period" role="group" aria-label="Board period">
         @if (p.hasSchedule) {
-          <div class="q-seg" role="radiogroup" aria-label="Show">
+          <!-- Toggle buttons, not radios: each is its own Tab stop, and there are no arrow keys to learn. -->
+          <div class="q-seg" role="group" aria-label="Show">
             <button
               class="q-seg__item"
-              role="radio"
-              [attr.aria-checked]="p.kind === 'sprint'"
+              [attr.aria-pressed]="p.kind === 'sprint'"
               [disabled]="store.loading()"
               (click)="store.setPeriod('current')"
             >
@@ -30,8 +30,7 @@ import { IconComponent } from './ui/icon.component';
             </button>
             <button
               class="q-seg__item"
-              role="radio"
-              [attr.aria-checked]="p.kind === 'custom'"
+              [attr.aria-pressed]="p.kind === 'custom'"
               [disabled]="store.loading()"
               (click)="store.setPeriod('custom')"
             >

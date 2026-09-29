@@ -80,7 +80,7 @@
   cursor: pointer;
 }
 .q-seg__item:hover:not(:disabled) { color: var(--text-1); background: var(--bg-3); }
-.q-seg__item[aria-checked="true"] { color: var(--text-1); background: var(--bg-4); }
+.q-seg__item[aria-pressed="true"] { color: var(--text-1); background: var(--bg-4); }
 .q-seg__item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .q-seg__item:disabled { cursor: not-allowed; }
 
