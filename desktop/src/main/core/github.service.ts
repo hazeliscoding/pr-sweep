@@ -258,7 +258,7 @@ export class GithubService {
 
   private async sweepOnce(config: SweepConfig, range: DateRange, base: SweepResult | null): Promise<SweepResult> {
     const profile = activeProfile(config);
-    if (!profile.org) throw new Error('No GitHub organization configured — set one in Settings.');
+    if (!profile.org) throw new Error('No GitHub organization is set. Add one in Settings.');
     const authors = profile.authors.length
       ? `(${profile.authors.map((a) => `author:${a}`).join(' OR ')})`
       : '';
@@ -469,7 +469,7 @@ export class GithubService {
     shrinkable = false,
   ): Promise<T> {
     const token = this.token();
-    if (!token) throw new Error('No GitHub token configured.');
+    if (!token) throw new Error("GitHub isn't connected. Connect it to sweep.");
     this.counters.requests++;
     if (attempt > 0) this.counters.retries++;
     let res: {

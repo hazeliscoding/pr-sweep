@@ -145,7 +145,7 @@ assert.deepEqual(reasons(pr()), []);
   const [a] = attention(draft({ createdAt: ago(6 * 24), updatedAt: ago(6 * 24), ci: 'failure' }), ctx());
   assert.equal(a.reason, 'DRAFT_TOO_LONG');
   assert.equal(a.since, ago(6 * 24));
-  assert.equal(a.action, 'Ready or close');
+  assert.equal(a.action, 'Mark ready or close');
   assert.equal(attention(draft({ createdAt: ago(6 * 24), ci: 'failure' }), ctx()).length, 1, 'only the draft reason');
   assert.deepEqual(reasons(draft({ ci: 'failure', mergeable: 'conflicting' })), [], 'a young draft is work in progress');
   assert.deepEqual(reasons(draft({ createdAt: ago(6 * 24) }), ctx({ staleDays: 0 })), []);

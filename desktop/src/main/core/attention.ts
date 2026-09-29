@@ -54,7 +54,7 @@ export function attention(row: PrRow, ctx: AttentionContext): Attention[] {
   // A draft is work in progress: failing CI or a conflict there is expected.
   // Only its age is worth a nudge.
   if (row.isDraft) {
-    if (age(row.createdAt) > slow) add('DRAFT_TOO_LONG', row.createdAt, 'Ready or close');
+    if (age(row.createdAt) > slow) add('DRAFT_TOO_LONG', row.createdAt, 'Mark ready or close');
     return out;
   }
 

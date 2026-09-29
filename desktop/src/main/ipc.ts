@@ -49,7 +49,7 @@ export function registerIpc(services: Services): void {
   ipcMain.handle('oauth:available', () => !!oauthClientId(services));
   ipcMain.handle('oauth:login', async (event) => {
     const clientId = oauthClientId(services);
-    if (!clientId) throw new Error('Device-flow sign-in is not configured.');
+    if (!clientId) throw new Error('Sign in with GitHub needs an OAuth App client ID. Add one in Settings.');
     const dc = await requestDeviceCode(clientId);
     // Show the code to the user, then open GitHub's verification page for them.
     event.sender.send('oauth:code', { userCode: dc.userCode, verificationUri: dc.verificationUri });
@@ -118,7 +118,7 @@ export function registerIpc(services: Services): void {
     if (canceled || !filePaths[0]) return null;
     const parsed = JSON.parse(readFileSync(filePaths[0], 'utf8'));
     const incoming: Profile[] = Array.isArray(parsed?.profiles) ? parsed.profiles : [];
-    if (!incoming.length) throw new Error('No profiles found in that file.');
+    if (!incoming.length) throw new Error('That file has no profiles in it.');
     const config = services.config.get();
     // Append imported profiles under fresh ids (names may collide; that's fine),
     // and switch to the first one so the import is immediately visible.
@@ -177,15 +177,15 @@ async function authStatus(services: Services): Promise<AuthStatus> {
       services.github.viewer(),
       org ? services.github.orgVisible(org) : Promise.resolve(false),
     ]);
-    if (!org) return { hasToken: true, login, error: 'No GitHub organization configured yet.' };
+    if (!org) return { hasToken: true, login, error: 'No GitHub organization is set yet.' };
     if (!orgOk) {
       return {
         hasToken: true,
         login,
         error:
           `This token signs in as ${login} but can't see ${org}. ` +
-          `If the org uses SAML SSO, open the token on github.com → "Configure SSO" → authorize ${org}, ` +
-          `then paste it again. Also check it has the repo and read:org scopes.`,
+          `If the org uses SAML SSO, open the token on github.com, choose Configure SSO and authorize ${org}, ` +
+          `then paste it again. Also check that it has the repo and read:org scopes.`,
       };
     }
     return { hasToken: true, login, error: null };
