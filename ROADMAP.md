@@ -339,8 +339,10 @@ on the `release/v0.12` branch.
   The pass found two things, both fixed: Ctrl+R blanked the window (a v0.11 bug: the
   `./` base href dropped `index.html` from the router's URLs), and the Sprints/Custom switch
   claimed to be radios without arrow keys, so it's toggle buttons now.*
-- [ ] `chore(release): v0.12.0` with its notes, then mark the pull request ready, merge it, and
-  tag `v0.12.0`.
+- [x] `chore(release): v0.12.0` with its notes in `docs/releases/v0.12.0.md`, then mark the pull
+  request ready, merge it, and tag `v0.12.0`. *Checked by hand on a real org before release.*
+- [ ] Update an installed v0.11 through the auto-updater and check that its profile, snoozes
+  and cached board carry over.
 
 **Done when:** every fixture state is restyled in both themes, with before and after screenshots
 on the pull request; `check-contrast` and `check-assets` pass in CI; a profile with a sprint
