@@ -138,8 +138,7 @@ GitHub search has quirks, all checked against the live API. PR Sweep works aroun
 ## Development
 
 ```sh
-npm install          # root orchestration deps
-npm run setup        # desktop + renderer deps
+npm install          # root, desktop and renderer deps (rerun after pulling)
 npm run dev          # Angular dev server (:4301) + Electron with live reload
 npm run build        # renderer AOT build + main-process tsc (the typecheck)
 npm test             # core service tests (build first)

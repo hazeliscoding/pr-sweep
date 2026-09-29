@@ -117,7 +117,8 @@ organization. It ships for Windows and Linux.
 
 Run these from the repo root unless noted.
 
-- `npm install && npm run setup` installs root, desktop and renderer dependencies.
+- `npm install` installs root, desktop and renderer dependencies: its postinstall runs
+  `npm run setup`. Run it again after pulling, since `npm run dev` installs nothing.
 - `npm run dev` runs the Angular dev server on :4301 and Electron with live reload.
 - `npm run build` runs the renderer AOT build and the main-process `tsc`. Together they are the
   typecheck.
