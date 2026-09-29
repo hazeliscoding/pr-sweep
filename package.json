@@ -4,6 +4,7 @@
   "private": true,
   "description": "pr-sweep — a portable desktop PR dashboard for the team: what's open, what needs review, what merged, by sprint.",
   "scripts": {
+    "postinstall": "npm run setup",
     "setup": "cd desktop && npm install && cd renderer && npm install",
     "dev": "concurrently -k -n web,app -c cyan,green \"npm run dev:web\" \"npm run dev:app\"",
     "dev:web": "cd desktop/renderer && npm start",

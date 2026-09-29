@@ -15,7 +15,9 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: |
-          npm ci
+          # --ignore-scripts: the root postinstall would npm install the folders below a
+          # second time, without their lockfiles' exact versions.
+          npm ci --ignore-scripts
           (cd desktop && npm ci)
           (cd desktop/renderer && npm ci)
       # Renderer AOT build + main-process tsc together are the typecheck.
