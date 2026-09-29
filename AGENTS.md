@@ -135,7 +135,9 @@ Run these from the repo root unless noted.
   `GH_TOKEN=$(gh auth token) PRSWEEP_ORG=<org> node e2e/screenshot.mjs` shoots the live board.
   `node e2e/screenshot.mjs --readme` renders the README images (`docs/screenshots/`) from `busy`.
   Every run uses a throwaway `--user-data-dir` and aborts unless the app really uses it; never
-  point a UI script at the real data folder (Chromium ignores `%APPDATA%` overrides).
+  point a UI script at the real data folder (Chromium ignores `%APPDATA%` overrides). A script
+  that presses Copy standup stubs `clipboard.write` in main first, so it never overwrites the
+  user's clipboard.
 - `PRSWEEP_FIXTURE=<name>` makes an unpackaged build serve canned sweeps from
   `desktop/e2e/fixtures/<name>.json` instead of GitHub, still judged by the real attention
   engine. Fixture times are relative (`"-3d"`, `"+2d"`); rows list only what matters and the
