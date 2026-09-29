@@ -5,7 +5,7 @@
  * Run after `npm run build:main`: node src/main/core/sprints.test.mjs
  */
 import assert from 'node:assert';
-import { resolvePeriod, sprintAt, sprintOn } from '../../../dist/main/main/core/sprints.js';
+import { resolvePeriod, sprintAt, sprintOn, sprintsAround } from '../../../dist/main/main/core/sprints.js';
 
 const schedule = (patch = {}) => ({
   pattern: 'Sprint {n}',
@@ -108,4 +108,29 @@ const TODAY = '2026-09-29';
   assert.equal(p.label, 'Sprint 2 · Jan 4–17, 2027', 'the year shows when it isn’t this one');
 }
 
-console.log('sprints: schedule math, current sprint and period resolution pass');
+// --- the editor's preview: two back, three ahead, never before the first ---
+{
+  const p = sprintsAround(schedule({ first: { number: 20, start: '2026-07-20' } }), TODAY);
+  assert.equal(p.current, 25);
+  assert.deepEqual(p.sprints.map((s) => s.number), [23, 24, 25, 26, 27, 28]);
+  assert.equal(p.sprints[2].start, '2026-09-28');
+  assert.equal(p.sprints[2].dates, 'Sep 28 – Oct 11');
+  assert.equal(p.sprints[2].days, 14);
+}
+{
+  const p = sprintsAround(schedule(), TODAY);
+  assert.deepEqual(p.sprints.map((s) => s.number), [24, 25, 26, 27, 28], 'clipped at the first sprint');
+}
+{
+  const p = sprintsAround(schedule({ first: { number: 1, start: '2026-10-05' } }), TODAY);
+  assert.strictEqual(p.current, null, 'not started yet');
+  assert.deepEqual(p.sprints.map((s) => s.number), [1, 2, 3, 4], 'the first few');
+}
+{
+  const p = sprintsAround(schedule({ names: { 26: 'Launch' }, lengths: { 25: 7 } }), TODAY);
+  assert.equal(p.sprints[2].name, 'Launch', 'overrides show in the preview');
+  assert.equal(p.sprints[2].start, '2026-10-05', 'and so do shifted dates');
+  assert.equal(p.sprints[1].days, 7);
+}
+
+console.log('sprints: schedule math, current sprint, period resolution and preview pass');

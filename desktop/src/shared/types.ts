@@ -43,6 +43,20 @@ export interface Sprint {
   end: string;
 }
 
+/** The sprints around today for the schedule editor in Settings (see sprints:preview). */
+export interface SprintPreview {
+  sprints: PreviewSprint[];
+  /** The sprint holding today, or null before the schedule starts. */
+  current: number | null;
+}
+
+/** A sprint with what the editor shows for it, worked out in main like every sprint date. */
+export interface PreviewSprint extends Sprint {
+  /** "Sep 28 – Oct 11", with the year when it isn't this one. */
+  dates: string;
+  days: number;
+}
+
 /** A profile's period resolved against today by the main process (see period:resolve). */
 export interface ResolvedPeriod {
   kind: 'sprint' | 'custom';
@@ -234,6 +248,8 @@ export interface PrSweepApi {
   latestSweep(): Promise<SweepResult | null>;
   /** The active profile's period (sprint or custom range) resolved against today. */
   resolvePeriod(): Promise<ResolvedPeriod>;
+  /** A schedule's sprints around today, for previewing edits before (and after) they're saved. */
+  previewSprints(schedule: SprintSchedule): Promise<SprintPreview>;
   /**
    * Push the latest sweep's tray-relevant slices: the review queue (counts +
    * review-request toasts), the viewer's own open PRs (approval / changes-

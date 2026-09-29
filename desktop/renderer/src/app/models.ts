@@ -27,6 +27,20 @@ export interface Sprint {
   end: string;
 }
 
+/** The sprints around today for the schedule editor in Settings. */
+export interface SprintPreview {
+  sprints: PreviewSprint[];
+  /** The sprint holding today, or null before the schedule starts. */
+  current: number | null;
+}
+
+/** A sprint with what the editor shows for it, worked out in main like every sprint date. */
+export interface PreviewSprint extends Sprint {
+  /** "Sep 28 – Oct 11", with the year when it isn't this one. */
+  dates: string;
+  days: number;
+}
+
 export interface ResolvedPeriod {
   kind: 'sprint' | 'custom';
   label: string;
@@ -169,6 +183,7 @@ export interface PrSweepApi {
   fetchPrs(range: DateRange, mode?: 'full' | 'auto'): Promise<SweepResult>;
   latestSweep(): Promise<SweepResult | null>;
   resolvePeriod(): Promise<ResolvedPeriod>;
+  previewSprints(schedule: SprintSchedule): Promise<SprintPreview>;
   syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number; attentionCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
   onUpdateState(cb: (state: UpdateState | null) => void): void;

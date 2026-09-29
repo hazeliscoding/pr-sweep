@@ -5,7 +5,7 @@
  * days (yyyy-mm-dd), and a sprint's end is its last day. Pure: "today" comes
  * from the caller.
  */
-import { DateRange, Profile, ResolvedPeriod, Sprint, SprintSchedule } from '../../shared/types';
+import { DateRange, PreviewSprint, Profile, ResolvedPeriod, Sprint, SprintPreview, SprintSchedule } from '../../shared/types';
 
 const DAY = 86_400_000;
 /** Guards the walks below against a runaway schedule. */
@@ -42,6 +42,22 @@ export function sprintOn(s: SprintSchedule, date: string): Sprint | null {
     start = addDays(end, 1);
   }
   return null;
+}
+
+/**
+ * The sprints around today: `before` earlier ones, the current one and `after`
+ * later ones, never before the first. Before the schedule starts, its first few.
+ */
+export function sprintsAround(s: SprintSchedule, today: string, before = 2, after = 3): SprintPreview {
+  const current = sprintOn(s, today)?.number ?? null;
+  const middle = current ?? s.first.number;
+  const year = Number(today.slice(0, 4));
+  const sprints: PreviewSprint[] = [];
+  for (let n = middle - before; n <= middle + after; n++) {
+    const sprint = sprintAt(s, n);
+    if (sprint) sprints.push({ ...sprint, dates: span(sprint.start, sprint.end, year), days: lengthOf(s, n) });
+  }
+  return { sprints, current };
 }
 
 /** What the board shows for a profile today: its sprint (current or pinned), or its custom range. */

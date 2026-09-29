@@ -113,7 +113,7 @@ function normalizeProfile(p: Record<string, unknown>): Profile {
 }
 
 /** A schedule that can be computed from, or null. A broken one is dropped, never guessed at. */
-function normalizeSprints(v: unknown): SprintSchedule | null {
+export function normalizeSprints(v: unknown): SprintSchedule | null {
   if (!v || typeof v !== 'object') return null;
   const s = v as Record<string, unknown>;
   const first = (s['first'] ?? {}) as Record<string, unknown>;

@@ -9,9 +9,9 @@
 import { dialog, ipcMain, shell } from 'electron';
 import { readFileSync, writeFileSync } from 'fs';
 import { annotate } from './core/attention';
-import { activeProfile, ConfigService } from './core/config.service';
+import { activeProfile, ConfigService, normalizeSprints } from './core/config.service';
 import { Fixture } from './core/fixture';
-import { localDate, resolvePeriod } from './core/sprints';
+import { localDate, resolvePeriod, sprintsAround } from './core/sprints';
 import { GithubService, SweepStats } from './core/github.service';
 import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
 import { pollForToken, requestDeviceCode } from './core/oauth.service';
@@ -83,6 +83,11 @@ export function registerIpc(services: Services): void {
   });
   // Fixture mode starts empty, so the first sweep's loading state is visible.
   ipcMain.handle('period:resolve', () => resolvePeriod(activeProfile(services.config.get()), localDate()));
+  // The schedule comes from the editor unsaved, so it gets the same check a saved one does.
+  ipcMain.handle('sprints:preview', (_e, schedule: unknown) => {
+    const s = normalizeSprints(schedule);
+    return s ? sprintsAround(s, localDate()) : { sprints: [], current: null };
+  });
   ipcMain.handle('prs:latest', () => (services.fixture ? null : services.snapshots.get()));
 
   ipcMain.handle('shell:open', (_e, url: string) => {
