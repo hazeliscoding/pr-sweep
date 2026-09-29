@@ -130,7 +130,8 @@ because smaller pages meant more requests (172 s median instead of 109 s).
 - **`NEEDS_RE_REVIEW` is a reason of its own.** "Changes requested" has two next steps: the
 author's (address the feedback) and the reviewer's (re-review after the push).
 - **Sprint-end risk is a header line, not a row reason.** As a reason it would flag nearly every
-unapproved PR in the last two days, when the list should be shortest.
+unapproved PR in the last two days, when the list should be shortest. *v0.13 moves the line into
+the health strip.*
 - **Quiet rows keep the Sweep short** (decided 2026-09-27). A flagged row goes quiet when its
 worst reason is a slow one (waiting, stale, old draft) or nobody has touched the PR in 30+
 days. Quiet rows sit behind "Show quiet", muted, and the tray count leaves them out. On the
@@ -145,6 +146,38 @@ renderer has no test harness; it's checked by hand.
 There are no new notifications.
 - **Each roadmap release is built on its own branch** (`release/vX.Y`) and reaches `main`
 through a pull request.
+
+## v0.13 decisions (2026-09-29)
+
+- **The health strip tells the sprint's story:** days left, open, needs attention, merged and
+median time to merge, each with a one-line note. The per-status counts stay in the table
+headings, and My queue keeps its own table and the tray.
+- **Sprint numbers are the team's.** Author chips, search and snoozes never change the strip or
+the standup; they only shape the tables and the Sweep. Otherwise one chip would turn time to
+merge into an individual cycle time.
+- **Needs attention counts every flagged PR except quiet ones**, so it equals the standup's
+Blocked plus Needs attention.
+- **The standup lists each open PR once**, in its most urgent group, all from the attention
+engine: Blocked (CI failing, a merge conflict, or requested changes left for over a day), Needs
+attention (the rest of the Sweep), and In review (everything else, quiet rows and same-day
+change requests included). Merged since the last working day comes first. Drafts stay out.
+- **Lines name the author's login as plain text**, with no @mention and no per-person counts.
+- **Copy standup puts rich text and Markdown on the clipboard together.** Slack and Teams paste
+the formatted version, with PR refs as links; plain-text places get the Markdown. Slack's
+message box doesn't read Markdown links, so Markdown alone wouldn't paste cleanly there. A paste
+test in real Slack and Teams comes before anything is built on the format.
+- **The last working day is the previous weekday**, so a Monday standup covers since Friday.
+"Merged since" only covers what the board already fetched: on a sprint's first day it says
+nothing has merged yet this sprint, rather than paying for another search.
+- **Days left are calendar days**, as the sprint-end warning counted them: "Ends today" on the
+last day, and "No end date" for an open custom range.
+- **The sprint-end line moves from the Sweep header into the strip**, so it's said once.
+- **Median time to merge runs from open to merge**, draft time included, so it needs no new
+fields. It shows "–" until something has merged.
+- **One click, no preview.** The button says what it copied, like "Copied: 3 merged, 3 blocked,
+3 need attention, 5 in review". It only appears when the board's period includes today.
+- **Sweep time is unchanged:** no new GitHub fields. The summary replaces `sprintRisk` in the
+sweep result (schema 6), so the first refresh after updating is a full one.
 
 ## Shipped
 
@@ -353,17 +386,27 @@ the README shows the new screenshots.
 ## v0.13: Sprint summary
 
 Theme: the board opens with how the sprint is going, and turns that into a standup in one click.
+Built on the `release/v0.13` branch.
 
-- [ ] The v0.12 health strip gains the sprint's story: merged, open, needs attention, and days
-  left in the sprint.
-- [ ] Median time to merge for PRs merged in the sprint, from `mergedAt − createdAt`. No new
-  fields.
-- [ ] **Copy standup as Markdown**: merged since the last working day, in review, blocked
-  (CI failing, changes requested, conflicts), needs attention.
-- [ ] No per-person numbers anywhere.
+- [x] Roadmap, `AGENTS.md` and a draft pull request for the milestone.
+- [ ] Paste test: a throwaway standup in rich text and Markdown, pasted into real Slack and
+  Teams, before anything is built on the format.
+- [ ] `core/summary.ts` with tests: days left, open and not yet approved, needs attention,
+  merged, merged since the last working day, and median time to merge. It replaces `sprintRisk`
+  in the sweep result (schema 6).
+- [ ] Health strip: the sprint's story, team-wide, with a note under each number. The Sweep
+  header loses its sprint line.
+- [ ] `core/standup.ts` with tests: the groups, the "since Friday" wording, and titles escaped
+  for both Markdown and HTML.
+- [ ] Copy standup: the button, both formats written to the clipboard by the main process, and a
+  "Copied" confirmation with the counts. Shown only when the period includes today.
+- [ ] Fixture screenshots in both themes, README, a keyboard pass and the renderer bundle size.
+- [ ] `chore(release): v0.13.0` with its notes, then mark the pull request ready, merge it, and
+  tag `v0.13.0`.
 
-**Done when:** you can run a standup from the app and paste the summary into Slack or Teams
-without editing it.
+**Done when:** you can run a standup from the app and paste it into Slack or Teams without
+editing it, the strip's numbers agree with the standup's, and no number in the strip changes
+when you pick an author chip.
 
 ## v0.14: Related work
 
