@@ -97,9 +97,16 @@ Run these from the repo root unless noted.
 - `npm run package:win` builds the installer and portable exe. `npm run package:linux` builds
   the AppImage and has to run on Linux. Local packages are unsigned unless the Azure env vars
   are set.
-- From `desktop/` after a build, `GH_TOKEN=$(gh auth token) node e2e/screenshot.mjs` writes
-  screenshots to `desktop/e2e/shots/`. `PRSWEEP_DEMO=1` points it at a public org for README
-  images.
+- From `desktop/` after `npm run build`, `node e2e/screenshot.mjs --fixtures [busy,calm,…]`
+  shoots every fixture state in both themes to `desktop/e2e/shots/`, with no token or network.
+  `GH_TOKEN=$(gh auth token) PRSWEEP_ORG=<org> node e2e/screenshot.mjs` shoots the live board.
+  Every run uses a throwaway `--user-data-dir` and aborts unless the app really uses it; never
+  point a UI script at the real data folder (Chromium ignores `%APPDATA%` overrides).
+- `PRSWEEP_FIXTURE=<name>` makes an unpackaged build serve canned sweeps from
+  `desktop/e2e/fixtures/<name>.json` instead of GitHub, still judged by the real attention
+  engine. Fixture times are relative (`"-3d"`, `"+2d"`); rows list only what matters and the
+  loader (`core/fixture.ts`) fills the rest. `busy` must keep triggering all nine attention
+  reasons (its test checks).
 - `PRSWEEP_DEBUG=1` makes the main process log GraphQL variables and response bodies, plus one
   `[sweep]` line per sweep with its mode, duration, requests and retries.
 - From `desktop/` after `npm run build:main`,

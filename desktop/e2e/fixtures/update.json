@@ -1,0 +1,7 @@
+{
+  "extends": "busy",
+  "update": [
+    { "afterMs": 1500, "state": { "status": "downloading", "version": "0.12.1", "percent": 42 } },
+    { "afterMs": 6000, "state": { "status": "ready", "version": "0.12.1", "percent": 100 } }
+  ]
+}

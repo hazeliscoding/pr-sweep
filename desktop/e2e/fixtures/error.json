@@ -1,0 +1,1 @@
+{ "extends": "busy", "failAfter": 1, "error": "GitHub API error: HTTP 502" }

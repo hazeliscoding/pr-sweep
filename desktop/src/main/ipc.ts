@@ -10,25 +10,28 @@ import { dialog, ipcMain, shell } from 'electron';
 import { readFileSync, writeFileSync } from 'fs';
 import { annotate } from './core/attention';
 import { activeProfile, ConfigService } from './core/config.service';
+import { Fixture } from './core/fixture';
 import { GithubService, SweepStats } from './core/github.service';
 import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
 import { pollForToken, requestDeviceCode } from './core/oauth.service';
 import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
-import { AuthStatus, DateRange, Profile, SweepConfigPatch } from '../shared/types';
+import { AuthStatus, DateRange, Profile, SWEEP_SCHEMA, SweepConfigPatch, SweepResult } from '../shared/types';
 
 export interface Services {
   config: ConfigService;
   tokens: TokenStore;
   github: GithubService;
   snapshots: SnapshotStore;
+  /** Fixture mode (see core/fixture.ts): sweeps and sign-in come from here, never GitHub. */
+  fixture: Fixture | null;
 }
 
 export function registerIpc(services: Services): void {
   ipcMain.handle('config:get', () => services.config.get());
   ipcMain.handle('config:set', (_e, patch: SweepConfigPatch) => services.config.set(patch ?? {}));
 
-  ipcMain.handle('auth:status', () => authStatus(services));
+  ipcMain.handle('auth:status', () => (services.fixture ? fixtureAuth(services.fixture) : authStatus(services)));
   ipcMain.handle('auth:setToken', async (_e, token: string) => {
     services.tokens.set(String(token ?? '').trim());
     const status = await authStatus(services);
@@ -59,22 +62,26 @@ export function registerIpc(services: Services): void {
   ipcMain.handle('prs:fetch', async (_e, range: DateRange, mode?: 'full' | 'auto') => {
     // Auto-refreshes may patch the cached snapshot incrementally; manual
     // refreshes always resweep in full so the user has a recovery lever.
-    const base = mode === 'auto' ? services.snapshots.get() : null;
+    const base = mode === 'auto' && !services.fixture ? services.snapshots.get() : null;
     try {
       const config = services.config.get();
+      const swept = services.fixture
+        ? await fixtureSweep(services.fixture, range)
+        : await services.github.sweep(config, range, base);
       // Every sweep re-judges every open row, cached ones included.
-      const result = annotate(await services.github.sweep(config, range, base), {
+      const result = annotate(swept, {
         now: Date.now(),
         staleDays: activeProfile(config).staleDays,
         rangeEnd: range.end,
       });
-      services.snapshots.set(result);
+      if (!services.fixture) services.snapshots.set(result);
       return result;
     } finally {
-      if (process.env.PRSWEEP_DEBUG) logSweep(mode ?? 'full', services.github.lastSweep);
+      if (process.env.PRSWEEP_DEBUG && !services.fixture) logSweep(mode ?? 'full', services.github.lastSweep);
     }
   });
-  ipcMain.handle('prs:latest', () => services.snapshots.get());
+  // Fixture mode starts empty, so the first sweep's loading state is visible.
+  ipcMain.handle('prs:latest', () => (services.fixture ? null : services.snapshots.get()));
 
   ipcMain.handle('shell:open', (_e, url: string) => {
     // The renderer only ever passes PR URLs, but shell.openExternal is the one
@@ -114,6 +121,29 @@ export function registerIpc(services: Services): void {
       activeProfileId: added[0].id,
     });
   });
+}
+
+function fixtureAuth(fixture: Fixture): AuthStatus {
+  return fixture.auth === 'no-token'
+    ? { hasToken: false, login: null, error: null }
+    : { hasToken: true, login: 'you', error: null };
+}
+
+let fixtureSweeps = 0;
+
+/** The fixture's rows as a sweep: held for `delayMs`, failing once `failAfter` sweeps succeeded. */
+async function fixtureSweep(fixture: Fixture, range: DateRange): Promise<SweepResult> {
+  fixtureSweeps++;
+  if (fixture.delayMs) await new Promise((r) => setTimeout(r, fixture.delayMs));
+  if (fixture.failAfter !== null && fixtureSweeps > fixture.failAfter) throw new Error(fixture.error);
+  return {
+    schema: SWEEP_SCHEMA,
+    fetchedAt: new Date().toISOString(),
+    org: fixture.profile.org,
+    range,
+    ...fixture.sweep,
+    sprintRisk: null,
+  };
 }
 
 /** One line per sweep: "[sweep] auto → incremental · 1.2 s · 3 requests · 0 retries". */
