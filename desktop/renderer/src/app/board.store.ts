@@ -9,6 +9,7 @@ import {
   ProfilePatch,
   SprintPreview,
   SprintSchedule,
+  StandupCounts,
   SweepConfig,
   SweepConfigPatch,
   SweepResult,
@@ -238,6 +239,12 @@ export class BoardStore {
     const had = !!this.activeProfile()?.sprints;
     this.patchProfile(sprints ? (had ? { sprints } : { sprints, period: 'current' }) : { sprints: null, period: 'custom' });
     void this.refresh();
+  }
+
+  /** The standup for the sweep on screen, built and put on the clipboard by main. */
+  copyStandup(): Promise<StandupCounts> {
+    const result = this.result();
+    return result ? this.api.copyStandup(result) : Promise.reject(new Error('Nothing has been swept yet.'));
   }
 
   previewSprints(schedule: SprintSchedule): Promise<SprintPreview> {

@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { BoardStore } from '../board.store';
 import { Attention, AttentionReason, PrRow, SprintSummary } from '../models';
 import { CiStatusComponent } from '../ui/ci-status.component';
@@ -37,13 +37,15 @@ interface HealthCell {
 }
 
 const HEALTH_LABELS = ['Days left', 'Open', 'Needs attention', 'Merged', 'Time to merge'];
+/** How long the Copy standup confirmation stays up. */
+const COPIED_MS = 6000;
 
 const SKELETON_ROWS = [1, 2, 3];
 const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
 
 /**
- * The dashboard: the sprint's story in a health strip, then the filter bar
- * (author chips,
+ * The dashboard: the sprint's story in a health strip, with Copy standup,
+ * then the filter bar (author chips,
  * drafts, free text), the Sweep (open PRs the attention engine flagged, each
  * with its reason and next step), then one dense table per status: my queue,
  * needs review, changes requested, approved, merged. All slicing is
@@ -57,7 +59,7 @@ const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <!-- The whole team's numbers: author chips, search and snoozes don't change them. -->
-    <section class="health" aria-label="Sprint health">
+    <section class="health" [class.health--with-action]="canCopyStandup()" aria-label="Sprint health">
       @for (cell of health(); track cell.label) {
         <div class="health__cell">
           <span class="q-label">{{ cell.label }}</span>
@@ -70,7 +72,18 @@ const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
           </span>
         </div>
       }
+      @if (canCopyStandup()) {
+        <div class="health__cell health__cell--action">
+          <span class="q-label">Standup</span>
+          <button class="q-btn" (click)="copyStandup()">
+            <q-icon [name]="copied() ? 'check' : 'clipboard-copy'" />
+            {{ copied() ? 'Copied' : 'Copy standup' }}
+          </button>
+          <span class="health__note">For Teams, Slack or Discord</span>
+        </div>
+      }
     </section>
+    <p class="standup-status" [class.standup-status--error]="standupFailed()" role="status">{{ standupMessage() }}</p>
 
     <div class="filters">
       <div class="filters__group" role="group" aria-labelledby="authors-label">
@@ -469,6 +482,12 @@ export class BoardComponent {
     ];
   });
 
+  /** A standup covers today, so it's offered only while the board shows a period that includes it. */
+  readonly canCopyStandup = computed(() => this.store.summary()?.when === 'during');
+  readonly copied = signal(false);
+  readonly standupMessage = signal('');
+  readonly standupFailed = signal(false);
+  private copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Active Sweep rows, then the snoozed and quiet ones when they're revealed. */
   readonly sweepRows = computed(() => [
@@ -540,6 +559,24 @@ export class BoardComponent {
     return h < 48 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
   }
 
+  async copyStandup(): Promise<void> {
+    clearTimeout(this.copiedTimer);
+    try {
+      const c = await this.store.copyStandup();
+      const attention = `${c.attention} ${c.attention === 1 ? 'needs' : 'need'} attention`;
+      this.standupFailed.set(false);
+      this.standupMessage.set(`Copied: ${c.merged} merged, ${c.blocked} blocked, ${attention}, ${c.review} in review.`);
+      this.copied.set(true);
+    } catch {
+      this.standupFailed.set(true);
+      this.standupMessage.set("Couldn't copy the standup. Try again after the next refresh.");
+      this.copied.set(false);
+    }
+    this.copiedTimer = setTimeout(() => {
+      this.copied.set(false);
+      this.standupMessage.set('');
+    }, COPIED_MS);
+  }
 }
 
 /** The Days left cell: a count while the period runs, otherwise when it starts or ended. */
