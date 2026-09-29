@@ -16,7 +16,7 @@ long. The share of diffs waiting more than three days for review dropped 12 perc
 Most teams don't have a Nudgebot. Their stuck PRs are spread across a dozen repos, and GitHub's
 own dashboard shows what's waiting on *you*, not on the team. PR Sweep puts the whole team's PRs
 on one board, sorted by GitHub's own review state, so nobody maintains labels or a project board.
-Set the org, the team and the sprint's dates once. It refreshes every five minutes from the tray.
+Set the org, the team and your sprint schedule once. It refreshes every five minutes from the tray.
 
 > **Status:** v0.11, in daily use. Windows and Linux builds are on [Releases](../../releases) and
 > update themselves. Next is a sprint summary with a standup you can paste into chat. See
@@ -24,7 +24,7 @@ Set the org, the team and the sprint's dates once. It refreshes every five minut
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/board-dark.png">
-  <img alt="The board for the electron org: counts for My queue, Needs review, Changes requested, Approved and Merged in range, author filter chips, then one table per section with each PR's title, author, comments, size, pending reviewers and last update" src="docs/screenshots/board.png">
+  <img alt="The board for a sample team in Sprint 24: a strip of counts for My queue, Needs review, Changes requested, Approved and Merged, author filter chips, the Sweep listing each stuck PR with its CI status, why it's stuck, for how long and a next-step button, then a table per section" src="docs/screenshots/board.png">
 </picture>
 
 ## Install
@@ -51,7 +51,9 @@ Grab a build from [Releases](../../releases).
      SAML SSO, choose **Configure SSO** on the token and authorize the org. An unauthorized token
      gets empty results instead of errors, so PR Sweep checks for this and tells you.
 3. In Settings, add your team's GitHub logins. Leave the list empty to see the whole org.
-4. Set the sprint's From and To dates in the header. Leave To empty for an open-ended view.
+4. In Settings, under **Sprints**, set when your first sprint starts and how long sprints run.
+   The board then opens on the current sprint. No sprints? Choose **Custom** in the top bar and
+   set From and To dates instead. Leave To empty for an open-ended view.
 
 > **Private orgs:** the first time someone signs in to an org that restricts third-party OAuth
 > apps, GitHub asks them to **request access to `<org>`**. An org owner approves the app once,
@@ -66,7 +68,10 @@ Grab a build from [Releases](../../releases).
   step. PRs that are only waiting or stale, or untouched for a month, sit behind a toggle, and
   you can snooze a row until it changes or tomorrow. In a sprint's last two days, it also says how
   many open PRs aren't approved yet.
-- **Sorts** every open PR your team has, plus what merged in the date range, into Needs review,
+- **Knows your sprint.** Give it the first sprint's start and the sprint length, and the board
+  opens on the current sprint, moves on when it ends, and steps back and forward with the arrows.
+  Rename a sprint or make one longer, and the sprints after it follow.
+- **Sorts** every open PR your team has, plus what merged in the sprint, into Needs review,
   Changes requested, Approved and Merged, from GitHub's `reviewDecision`. There are no labels to
   keep up.
 - **Queues** the open PRs anywhere in the org that are waiting on *your* review, with how long
@@ -76,7 +81,7 @@ Grab a build from [Releases](../../releases).
 - **Notifies** from the tray when a PR lands in your queue, or when one of yours is approved, gets
   changes requested or starts failing CI. The tray menu also counts what the Sweep has for the
   team. Closing the window keeps it watching.
-- **Shares** a setup. Save org, team and date-range profiles, then export them as JSON for
+- **Shares** a setup. Save org, team and sprint profiles, then export them as JSON for
   teammates to import. Tokens are never exported.
 - **Opens instantly.** The last sweep is cached on disk, so the board appears at once and
   refreshes in the background.
