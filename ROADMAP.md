@@ -29,7 +29,8 @@ what to do next.
   branch names. Grouping by linked issues comes later. It's the last feature milestone, so it can
   slip to 1.1 without holding up 1.0.
 - **Four minor releases to 1.0:** v0.11 Sweep, v0.12 Sprint summary, v0.13 Related work, v0.14
-  Release candidate. Fixes ship as patch releases in between.
+  Release candidate. Fixes ship as patch releases in between. *Superseded on 2026-09-29: five,
+  with v0.12 Quorum and sprints.*
 - **1.0 needs both** the feature milestones done and the auto-updater carrying installed copies
   through each of them. This replaces "1.0 when auto-update has proven itself across a few
   releases". Silent update install only landed in v0.10.3, so it has carried one update so far.
@@ -54,6 +55,29 @@ what to do next.
   short one-line bullets under New, Faster, Fixed, Heads up and Getting it. The release workflow
   publishes the file as the release body and fails before building if it's missing. GitHub's
   generated notes were just a compare link.
+
+## Decisions (2026-09-29)
+
+- **v0.12 is Quorum and sprints.** PR Sweep adopts the Quorum Design System, and named sprints
+  come back. The sprint summary moves to v0.13, so there are five minor releases to 1.0: v0.11
+  Sweep, v0.12 Quorum and sprints, v0.13 Sprint summary, v0.14 Related work, v0.15 Release
+  candidate.
+- **Quorum, adapted.** Its tokens are copied as-is, with one local change: `text-3` fails AA in
+  both themes (3.3–3.6:1), so it becomes `#636D7C` in light and `#8590A0` in dark. Manrope, IBM
+  Plex Mono and the Lucide icons are bundled, never loaded from a CDN, to keep the "only GitHub"
+  promise. Quorum's React components are the reference, rebuilt as a few small Angular components
+  only where a pattern repeats; everything else is plain markup on Quorum tokens.
+- **The app and tray icons stay navy and gold.** Inside the app, the accent is Quorum's teal.
+- **Quorum's voice applies everywhere**, release notes included: sentence case, plain words, no
+  emoji. Release notes keep their shape (a bold TL;DR, one-line bullets) under plain headings.
+- **Sprints come back as a schedule, not a list.** They were removed on 2026-08-27 because
+  keeping a list of sprint windows up to date was "clicks for no benefit". A schedule (the first
+  sprint's number and start, a length, a name pattern, and one-off length or name overrides)
+  computes every sprint, and "Current" rolls over by itself. It's set per profile and included
+  in profile export. A custom range stays for one-off views.
+- **The fixture sweep moves from the release candidate into v0.12**, so the redesign can be
+  reviewed in every state, including ones live data can't produce on demand. Running the
+  screenshots in CI stays with the release candidate.
 
 ## v0.11 decisions (2026-09-25)
 
@@ -155,8 +179,8 @@ clunky.
 - [x] Unit tests for core services (device-flow poll, config migration, query builder + bucketing)
 - [x] Tests run in CI on every PR and push
 - [x] Keyboard navigation / accessibility pass (focusable PR rows, dialog semantics, focus rings)
-- Screenshot driver as a CI smoke test: *moved to v0.14, where a fixture sweep removes the
-  token-secret blocker*
+- Screenshot driver as a CI smoke test: *moved to the release candidate (v0.15), where the
+  fixture sweep removes the token-secret blocker*
 
 ### v0.9: Platforms and performance ✅
 - [x] Code signing (Azure Trusted Signing in the release workflow, same signing account as ez-money)
@@ -259,13 +283,50 @@ the `release/v0.11` branch.
 to do, a PR leaves the list on its own once it's fixed, the first refresh after updating from
 v0.10.x fills in every row, and the budget holds with the numbers recorded here.
 
-## v0.12: Sprint summary
+## v0.12: Quorum and sprints
+
+Theme: PR Sweep looks and reads like one calm instrument, and knows which sprint it's in. Built
+on the `release/v0.12` branch.
+
+- [ ] Roadmap, `AGENTS.md` and a draft pull request for the milestone.
+- [ ] Fixture mode (`PRSWEEP_FIXTURE=<name>`, unpackaged builds only): a canned sweep run through
+      the real attention engine, with no network. Fixtures `busy`, `calm`, `empty`, `error`,
+      `onboarding`, `update` and `loading` use relative times. A loader in `core/` has tests,
+      including one that `busy` triggers all nine attention reasons.
+- [ ] The screenshot script shoots every fixture state in both themes, each run in its own
+      throwaway `--user-data-dir`. "Before" screenshots of the v0.11 UI go on the pull request.
+- [ ] Foundation: Quorum tokens with the AA fix, bundled Manrope and IBM Plex Mono with their OFL
+      texts, and vendored Lucide icons with the ISC notice. `check-contrast` and `check-assets`
+      run in CI, each with a positive control.
+- [ ] Sprints core: `core/sprints.ts` (schedule math, the current sprint, period resolution),
+      `sprints` and `period` on each profile with a migration, and a `period:resolve` IPC call.
+- [ ] Shell: top bar with the sprint picker, freshness indicator, loading bar, tabs, theme
+      toggle, update pill and error banner.
+- [ ] Board: health strip, filter bar, tables with density, CI status badges, Sweep rows, empty
+      states and skeleton rows.
+- [ ] Settings, with a Sprints section, and onboarding. The old stylesheet is deleted and the
+      no-raw-colors rule switches on.
+- [ ] Voice pass over every string, a Design section in `AGENTS.md`, and README screenshots from
+      the `busy` fixture.
+- [ ] Review: before and after screenshots of every state in both themes, a keyboard pass, the
+      v0.11 snooze, quiet and tray checks rerun on fixtures, and the renderer bundle size
+      recorded.
+- [ ] `chore(release): v0.12.0` with its notes, then mark the pull request ready, merge it, and
+      tag `v0.12.0`.
+
+**Done when:** every fixture state is restyled in both themes, with before and after screenshots
+on the pull request; `check-contrast` and `check-assets` pass in CI; a profile with a sprint
+schedule opens on the current sprint, rolls over by itself and navigates with the arrows, while
+custom ranges and existing configs work unchanged; behavior and keyboard order match v0.11; and
+the README shows the new screenshots.
+
+## v0.13: Sprint summary
 
 Theme: the board opens with how the sprint is going, and turns that into a standup in one click.
 
-- [ ] Health strip above the board: merged, open, needs attention, and days left (only when the
-      range has an end date).
-- [ ] Median time to merge for PRs merged in the range, from `mergedAt − createdAt`. No new
+- [ ] The v0.12 health strip gains the sprint's story: merged, open, needs attention, and days
+      left in the sprint.
+- [ ] Median time to merge for PRs merged in the sprint, from `mergedAt − createdAt`. No new
       fields.
 - [ ] **Copy standup as Markdown**: merged since the last working day, in review, blocked
       (CI failing, changes requested, conflicts), needs attention.
@@ -274,7 +335,7 @@ Theme: the board opens with how the sprint is going, and turns that into a stand
 **Done when:** you can run a standup from the app and paste the summary into Slack or Teams
 without editing it.
 
-## v0.13: Related work
+## v0.14: Related work
 
 Theme: a feature that spans repos reads as one piece of work.
 
@@ -287,24 +348,22 @@ Theme: a feature that spans repos reads as one piece of work.
 
 **Done when:** a feature that spans 3 repos shows as one expandable group with each PR's state.
 
-## v0.14: Release candidate
+## v0.15: Release candidate
 
 Theme: nothing new. Make what exists boringly reliable.
 
 - [ ] First-run, empty, loading and error states, checked end to end. That includes the
       SSO-blind token and the pending OAuth-app approval.
-- [ ] Fixture sweep: the app can render a canned `SweepResult` without a token.
-- [ ] The screenshot driver runs in CI against the fixture sweep (under `xvfb-run`), with no
+- [ ] The screenshot script runs in CI against the fixture sweep (under `xvfb-run`), with no
       token secret needed. This is the item deferred from v0.8.
-- [ ] Fresh README screenshots from the fixture sweep.
 - [ ] README repositioned around the sprint pitch and the 1.0 promise.
 - [ ] Config migration and profile export/import tested with every setting added since v0.11.
 
-**Done when:** a 0.14.x build gets through a full sprint of daily use without needing a fix.
+**Done when:** a 0.15.x build gets through a full sprint of daily use without needing a fix.
 
 ## v1.0: Stable
 
-- [ ] v0.11 through v0.14 each reached installed copies (Windows installer and Linux AppImage)
+- [ ] v0.11 through v0.15 each reached installed copies (Windows installer and Linux AppImage)
       through the auto-updater, with no manual reinstall.
 - [ ] The 1.0 promise holds.
 
@@ -323,7 +382,8 @@ Theme: nothing new. Make what exists boringly reliable.
 - Grouping by linked issues (`closingIssuesReferences`) and GitHub Projects
 - Review-wait metrics for merged PRs (needs review timestamps on every merged PR, which is
   expensive)
-- Roll the date range forward automatically each sprint (a sprint-length setting)
+- Read sprints from a GitHub Projects iteration field, the closest thing GitHub has to Azure
+  DevOps iterations (needs the `read:project` token scope)
 - Post the standup straight to Slack or Teams
 
 ## Not planned
