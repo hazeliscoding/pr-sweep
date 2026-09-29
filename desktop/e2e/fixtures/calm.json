@@ -1,0 +1,18 @@
+{
+  "profile": {
+    "org": "acme",
+    "authors": ["dana", "lee", "sam", "priya", "jo"],
+    "range": { "start": "-12d", "end": null },
+    "includeDrafts": false,
+    "staleDays": 5
+  },
+  "open": [
+    { "repo": "web", "number": 830, "title": "Dark mode tokens for charts", "author": "sam", "ci": "pending", "createdAt": "-3h", "updatedAt": "-40m", "requestedReviewers": ["priya"] },
+    { "repo": "api", "number": 497, "title": "Return rate-limit headers on every response", "author": "jo", "createdAt": "-20h", "updatedAt": "-2h", "requestedReviewers": ["dana"] },
+    { "repo": "mobile", "number": 41, "title": "Cache the feed for offline use", "author": "dana", "bucket": "approved", "createdAt": "-2d", "updatedAt": "-4h", "approvedAt": "-4h", "mergeable": "mergeable", "reviewCount": 1 }
+  ],
+  "merged": [
+    { "repo": "api", "number": 488, "title": "Log slow queries over 500 ms", "author": "lee", "createdAt": "-3d", "mergedAt": "-1d" },
+    { "repo": "infra", "number": 92, "title": "Rotate the staging database password", "author": "dana", "createdAt": "-2d", "mergedAt": "-6h" }
+  ]
+}

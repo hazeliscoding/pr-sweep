@@ -9,26 +9,30 @@
 import { dialog, ipcMain, shell } from 'electron';
 import { readFileSync, writeFileSync } from 'fs';
 import { annotate } from './core/attention';
-import { activeProfile, ConfigService } from './core/config.service';
+import { activeProfile, ConfigService, normalizeSprints } from './core/config.service';
+import { Fixture } from './core/fixture';
+import { localDate, resolvePeriod, sprintsAround } from './core/sprints';
 import { GithubService, SweepStats } from './core/github.service';
 import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
 import { pollForToken, requestDeviceCode } from './core/oauth.service';
 import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
-import { AuthStatus, DateRange, Profile, SweepConfigPatch } from '../shared/types';
+import { AuthStatus, DateRange, Profile, SWEEP_SCHEMA, SweepConfigPatch, SweepResult } from '../shared/types';
 
 export interface Services {
   config: ConfigService;
   tokens: TokenStore;
   github: GithubService;
   snapshots: SnapshotStore;
+  /** Fixture mode (see core/fixture.ts): sweeps and sign-in come from here, never GitHub. */
+  fixture: Fixture | null;
 }
 
 export function registerIpc(services: Services): void {
   ipcMain.handle('config:get', () => services.config.get());
   ipcMain.handle('config:set', (_e, patch: SweepConfigPatch) => services.config.set(patch ?? {}));
 
-  ipcMain.handle('auth:status', () => authStatus(services));
+  ipcMain.handle('auth:status', () => (services.fixture ? fixtureAuth(services.fixture) : authStatus(services)));
   ipcMain.handle('auth:setToken', async (_e, token: string) => {
     services.tokens.set(String(token ?? '').trim());
     const status = await authStatus(services);
@@ -45,7 +49,7 @@ export function registerIpc(services: Services): void {
   ipcMain.handle('oauth:available', () => !!oauthClientId(services));
   ipcMain.handle('oauth:login', async (event) => {
     const clientId = oauthClientId(services);
-    if (!clientId) throw new Error('Device-flow sign-in is not configured.');
+    if (!clientId) throw new Error('Sign in with GitHub needs an OAuth App client ID. Add one in Settings.');
     const dc = await requestDeviceCode(clientId);
     // Show the code to the user, then open GitHub's verification page for them.
     event.sender.send('oauth:code', { userCode: dc.userCode, verificationUri: dc.verificationUri });
@@ -59,22 +63,32 @@ export function registerIpc(services: Services): void {
   ipcMain.handle('prs:fetch', async (_e, range: DateRange, mode?: 'full' | 'auto') => {
     // Auto-refreshes may patch the cached snapshot incrementally; manual
     // refreshes always resweep in full so the user has a recovery lever.
-    const base = mode === 'auto' ? services.snapshots.get() : null;
+    const base = mode === 'auto' && !services.fixture ? services.snapshots.get() : null;
     try {
       const config = services.config.get();
+      const swept = services.fixture
+        ? await fixtureSweep(services.fixture, range)
+        : await services.github.sweep(config, range, base);
       // Every sweep re-judges every open row, cached ones included.
-      const result = annotate(await services.github.sweep(config, range, base), {
+      const result = annotate(swept, {
         now: Date.now(),
         staleDays: activeProfile(config).staleDays,
         rangeEnd: range.end,
       });
-      services.snapshots.set(result);
+      if (!services.fixture) services.snapshots.set(result);
       return result;
     } finally {
-      if (process.env.PRSWEEP_DEBUG) logSweep(mode ?? 'full', services.github.lastSweep);
+      if (process.env.PRSWEEP_DEBUG && !services.fixture) logSweep(mode ?? 'full', services.github.lastSweep);
     }
   });
-  ipcMain.handle('prs:latest', () => services.snapshots.get());
+  // Fixture mode starts empty, so the first sweep's loading state is visible.
+  ipcMain.handle('period:resolve', () => resolvePeriod(activeProfile(services.config.get()), localDate()));
+  // The schedule comes from the editor unsaved, so it gets the same check a saved one does.
+  ipcMain.handle('sprints:preview', (_e, schedule: unknown) => {
+    const s = normalizeSprints(schedule);
+    return s ? sprintsAround(s, localDate()) : { sprints: [], current: null };
+  });
+  ipcMain.handle('prs:latest', () => (services.fixture ? null : services.snapshots.get()));
 
   ipcMain.handle('shell:open', (_e, url: string) => {
     // The renderer only ever passes PR URLs, but shell.openExternal is the one
@@ -104,7 +118,7 @@ export function registerIpc(services: Services): void {
     if (canceled || !filePaths[0]) return null;
     const parsed = JSON.parse(readFileSync(filePaths[0], 'utf8'));
     const incoming: Profile[] = Array.isArray(parsed?.profiles) ? parsed.profiles : [];
-    if (!incoming.length) throw new Error('No profiles found in that file.');
+    if (!incoming.length) throw new Error('That file has no profiles in it.');
     const config = services.config.get();
     // Append imported profiles under fresh ids (names may collide; that's fine),
     // and switch to the first one so the import is immediately visible.
@@ -114,6 +128,29 @@ export function registerIpc(services: Services): void {
       activeProfileId: added[0].id,
     });
   });
+}
+
+function fixtureAuth(fixture: Fixture): AuthStatus {
+  return fixture.auth === 'no-token'
+    ? { hasToken: false, login: null, error: null }
+    : { hasToken: true, login: 'you', error: null };
+}
+
+let fixtureSweeps = 0;
+
+/** The fixture's rows as a sweep: held for `delayMs`, failing once `failAfter` sweeps succeeded. */
+async function fixtureSweep(fixture: Fixture, range: DateRange): Promise<SweepResult> {
+  fixtureSweeps++;
+  if (fixture.delayMs) await new Promise((r) => setTimeout(r, fixture.delayMs));
+  if (fixture.failAfter !== null && fixtureSweeps > fixture.failAfter) throw new Error(fixture.error);
+  return {
+    schema: SWEEP_SCHEMA,
+    fetchedAt: new Date().toISOString(),
+    org: fixture.profile.org,
+    range,
+    ...fixture.sweep,
+    sprintRisk: null,
+  };
 }
 
 /** One line per sweep: "[sweep] auto → incremental · 1.2 s · 3 requests · 0 retries". */
@@ -140,15 +177,15 @@ async function authStatus(services: Services): Promise<AuthStatus> {
       services.github.viewer(),
       org ? services.github.orgVisible(org) : Promise.resolve(false),
     ]);
-    if (!org) return { hasToken: true, login, error: 'No GitHub organization configured yet.' };
+    if (!org) return { hasToken: true, login, error: 'No GitHub organization is set yet.' };
     if (!orgOk) {
       return {
         hasToken: true,
         login,
         error:
           `This token signs in as ${login} but can't see ${org}. ` +
-          `If the org uses SAML SSO, open the token on github.com → "Configure SSO" → authorize ${org}, ` +
-          `then paste it again. Also check it has the repo and read:org scopes.`,
+          `If the org uses SAML SSO, open the token on github.com, choose Configure SSO and authorize ${org}, ` +
+          `then paste it again. Also check that it has the repo and read:org scopes.`,
       };
     }
     return { hasToken: true, login, error: null };

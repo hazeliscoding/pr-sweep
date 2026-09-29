@@ -10,6 +10,49 @@ export interface DateRange {
   end: string | null;
 }
 
+export interface SprintSchedule {
+  pattern: string;
+  first: { number: number; start: string };
+  lengthDays: number;
+  lengths: Record<number, number>;
+  names: Record<number, string>;
+}
+
+export type Period = 'current' | { sprint: number } | 'custom';
+
+export interface Sprint {
+  number: number;
+  name: string;
+  start: string;
+  end: string;
+}
+
+/** The sprints around today for the schedule editor in Settings. */
+export interface SprintPreview {
+  sprints: PreviewSprint[];
+  /** The sprint holding today, or null before the schedule starts. */
+  current: number | null;
+}
+
+/** A sprint with what the editor shows for it, worked out in main like every sprint date. */
+export interface PreviewSprint extends Sprint {
+  /** "Sep 28 – Oct 11", with the year when it isn't this one. */
+  dates: string;
+  days: number;
+}
+
+export interface ResolvedPeriod {
+  kind: 'sprint' | 'custom';
+  label: string;
+  range: DateRange;
+  sprint: Sprint | null;
+  isCurrent: boolean;
+  previous: Sprint | null;
+  next: Sprint | null;
+  current: Sprint | null;
+  hasSchedule: boolean;
+}
+
 export interface Profile {
   id: string;
   name: string;
@@ -18,6 +61,8 @@ export interface Profile {
   range: DateRange;
   includeDrafts: boolean;
   staleDays: number;
+  sprints: SprintSchedule | null;
+  period: Period;
 }
 
 export type ProfilePatch = Partial<Omit<Profile, 'id'>>;
@@ -137,6 +182,8 @@ export interface PrSweepApi {
    */
   fetchPrs(range: DateRange, mode?: 'full' | 'auto'): Promise<SweepResult>;
   latestSweep(): Promise<SweepResult | null>;
+  resolvePeriod(): Promise<ResolvedPeriod>;
+  previewSprints(schedule: SprintSchedule): Promise<SprintPreview>;
   syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number; attentionCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
   onUpdateState(cb: (state: UpdateState | null) => void): void;

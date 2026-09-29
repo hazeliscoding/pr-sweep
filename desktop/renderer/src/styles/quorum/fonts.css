@@ -1,0 +1,13 @@
+/* Quorum Design System: tokens/fonts.css, adapted. Quorum loads Manrope and IBM Plex Mono from
+   Google Fonts; PR Sweep bundles the same families from Fontsource (OFL 1.1, license texts in
+   licenses/) so the app never loads anything from a CDN. */
+@import '@fontsource/manrope/400.css';
+@import '@fontsource/manrope/500.css';
+@import '@fontsource/manrope/600.css';
+@import '@fontsource/manrope/700.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+:root{
+  --font-sans:"Manrope",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}

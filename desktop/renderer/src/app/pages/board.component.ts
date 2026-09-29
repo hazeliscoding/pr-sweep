@@ -1,6 +1,9 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { BoardStore } from '../board.store';
 import { Attention, AttentionReason, PrRow, SprintRisk } from '../models';
+import { CiStatusComponent } from '../ui/ci-status.component';
+import { IconComponent } from '../ui/icon.component';
 
 const REASON_LABELS: Record<AttentionReason, string> = {
   CI_FAILING: 'CI failing',
@@ -15,312 +18,429 @@ const REASON_LABELS: Record<AttentionReason, string> = {
 };
 
 interface BoardSection {
+  id: string;
   title: string;
   rows: PrRow[];
   /** Merged rows date from merge time and don't have outstanding reviewers or CI. */
   merged: boolean;
-  /** The "waiting on my review" section gets review-wait badges. */
+  /** The "waiting on my review" section gets review-wait tags, and author chips don't apply to it. */
   queue?: boolean;
   emptyNote: string;
 }
 
+/** One cell of the health strip: a count, and a dot and a note that say whether it's fine. */
+interface HealthCell {
+  label: string;
+  count: number | null;
+  tone: 'healthy' | 'warning' | 'info' | null;
+  note: string;
+}
+
+const SKELETON_ROWS = [1, 2, 3];
+const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
+
 /**
- * The dashboard: KPI counts, a filter toolbar (author toggles + free text),
- * the Sweep (open PRs the attention engine flagged, each with its reason and
- * next step), then one dense table per status — needs review / changes
- * requested / approved / merged this sprint. All slicing is client-side over
- * the store's fetched result; clicking a status row opens the PR in the
- * default browser.
+ * The dashboard: a health strip of counts, the filter bar (author chips,
+ * drafts, free text), the Sweep (open PRs the attention engine flagged, each
+ * with its reason and next step), then one dense table per status: my queue,
+ * needs review, changes requested, approved, merged. All slicing is
+ * client-side over the store's fetched result; a status row opens its PR in
+ * the default browser.
  */
 @Component({
   selector: 'app-board',
   standalone: true,
+  imports: [NgTemplateOutlet, CiStatusComponent, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="kpi-row">
-      <div class="kpi kpi-queue">
-        <div class="kpi-label">My queue</div>
-        <div class="kpi-value">{{ store.queue().length }}</div>
-      </div>
-      <div class="kpi kpi-review">
-        <div class="kpi-label">Needs review</div>
-        <div class="kpi-value">{{ store.needsReview().length }}</div>
-      </div>
-      <div class="kpi kpi-changes">
-        <div class="kpi-label">Changes requested</div>
-        <div class="kpi-value">{{ store.changesRequested().length }}</div>
-      </div>
-      <div class="kpi kpi-approved">
-        <div class="kpi-label">Approved</div>
-        <div class="kpi-value">{{ store.approved().length }}</div>
-      </div>
-      <div class="kpi kpi-merged">
-        <div class="kpi-label">Merged in range</div>
-        <div class="kpi-value">{{ store.merged().length }}</div>
-      </div>
-    </div>
-
-    <div class="toolbar">
-      <label>Authors</label>
-      @for (login of authors(); track login) {
-        <button
-          class="toggle"
-          [class.on]="store.authorFilter().has(login)"
-          (click)="store.toggleAuthor(login)"
-        >
-          {{ login }}
-        </button>
-      }
-      <button
-        class="toggle"
-        [class.on]="store.activeProfile()?.includeDrafts"
-        title="Include draft PRs"
-        (click)="store.toggleDrafts()"
-      >
-        Drafts
-      </button>
-      <span class="spacer"></span>
-      <input
-        class="search"
-        type="search"
-        placeholder="Filter by title or repo"
-        [value]="store.search()"
-        (input)="store.search.set($any($event.target).value)"
-      />
-    </div>
-
-    <section class="section sweep" aria-labelledby="sweep-title">
-      <div class="sweep-head">
-        <h2 id="sweep-title">Sweep <span class="muted">({{ store.sweep().length }})</span></h2>
-        @if (store.sprintRisk(); as risk) {
-          <p class="sprint-risk">{{ sprintLine(risk) }}</p>
-        }
-        @if (store.quiet().length > 0) {
-          <button
-            class="toggle quiet-toggle"
-            title="Only waiting or stale, or untouched for a month"
-            [class.on]="store.showQuiet()"
-            [attr.aria-pressed]="store.showQuiet()"
-            (click)="store.showQuiet.set(!store.showQuiet())"
-          >
-            Show quiet ({{ store.quiet().length }})
-          </button>
-        }
-        @if (store.snoozed().length > 0) {
-          <button
-            class="toggle snooze-toggle"
-            [class.on]="store.showSnoozed()"
-            [attr.aria-pressed]="store.showSnoozed()"
-            (click)="store.showSnoozed.set(!store.showSnoozed())"
-          >
-            Show snoozed ({{ store.snoozed().length }})
-          </button>
-        }
-      </div>
-      @if (sweepRows().length > 0) {
-        <table>
-          <thead>
-            <tr>
-              <th>PR</th>
-              <th class="ci-col" title="Latest commit's checks">CI</th>
-              <th>Title</th>
-              <th>Why</th>
-              <th>Author</th>
-              <th class="next">Next step</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Rows aren't one big button here: they hold buttons of their own. -->
-            @for (pr of sweepRows(); track pr.url) {
-              <tr [class.snoozed]="!pr.quiet && store.isSnoozed(pr)" [class.quiet]="pr.quiet">
-                <td class="pr-ref">{{ pr.repo }}#{{ pr.number }}</td>
-                <td class="ci-col">
-                  @if (pr.ci; as ci) {
-                    <span class="ci-dot ci-{{ ci }}" [attr.aria-label]="'CI ' + ci" [title]="'CI ' + ci"></span>
-                  }
-                </td>
-                <td>
-                  <button
-                    class="link-button"
-                    [title]="pr.url"
-                    [attr.aria-label]="'Open ' + pr.repo + '#' + pr.number + ' — ' + pr.title"
-                    (click)="store.openPr(pr)"
-                  >
-                    {{ pr.title }}
-                  </button>
-                  @if (pr.isDraft) {
-                    <span class="draft-tag">draft</span>
-                  }
-                </td>
-                <td class="reason">
-                  <span class="reason-label tier-{{ tier(pr.attention[0]) }}">{{ label(pr.attention[0]) }}</span>
-                  @if (pr.attention[0].since; as since) {
-                    <span class="reason-age" [title]="'Since ' + since"> · {{ age(since) }}</span>
-                  }
-                  @for (other of pr.attention.slice(1); track other.reason) {
-                    <span class="reason-chip">{{ label(other) }}</span>
-                  }
-                </td>
-                <td>{{ pr.author }}</td>
-                <td class="next">
-                  <button
-                    [attr.aria-label]="pr.attention[0].action + ': ' + pr.repo + '#' + pr.number"
-                    (click)="store.openUrl(pr.attention[0].href)"
-                  >
-                    {{ pr.attention[0].action }}
-                  </button>
-                  @if (pr.quiet) {
-                    <!-- quiet rows have no snooze: they're already out of the way -->
-                  } @else if (store.isSnoozed(pr)) {
-                    <button
-                      class="snooze-btn"
-                      [attr.aria-label]="'Unsnooze ' + pr.repo + '#' + pr.number"
-                      (click)="store.unsnooze(pr)"
-                    >
-                      Unsnooze
-                    </button>
-                  } @else {
-                    <button
-                      class="snooze-btn"
-                      title="Hide until it changes, gets worse, or tomorrow"
-                      [attr.aria-label]="'Snooze ' + pr.repo + '#' + pr.number"
-                      (click)="store.snooze(pr)"
-                    >
-                      Snooze
-                    </button>
-                  }
-                </td>
-              </tr>
+    <section class="health" aria-label="Board health">
+      @for (cell of health(); track cell.label) {
+        <div class="health__cell">
+          <span class="q-label">{{ cell.label }}</span>
+          <span class="health__value">{{ cell.count ?? '–' }}</span>
+          <span class="health__note">
+            @if (cell.tone) {
+              <span class="q-dot q-dot--{{ cell.tone }}" aria-hidden="true"></span>
             }
-          </tbody>
-        </table>
-      } @else {
-        <p class="empty-note">
-          Nothing needs attention.
-          @if (hiddenNote(); as note) {
-            ({{ note }})
-          }
-        </p>
+            {{ cell.note }}
+          </span>
+        </div>
       }
     </section>
 
-    @for (section of sections(); track section.title) {
-      <section class="section">
-        <h2>{{ section.title }} <span class="muted">({{ section.rows.length }})</span></h2>
-        @if (section.rows.length > 0) {
-          <table>
+    <div class="filters">
+      <div class="filters__group" role="group" aria-labelledby="authors-label">
+        <span id="authors-label" class="q-label">Authors</span>
+        @for (login of authors(); track login) {
+          <button
+            class="q-chip q-chip--mono"
+            [attr.aria-pressed]="store.authorFilter().has(login)"
+            (click)="store.toggleAuthor(login)"
+          >
+            @if (store.authorFilter().has(login)) {
+              <q-icon name="check" [size]="12" />
+            }
+            {{ login }}
+          </button>
+        }
+      </div>
+      <button
+        class="q-chip"
+        title="Include draft PRs"
+        [attr.aria-pressed]="!!store.activeProfile()?.includeDrafts"
+        (click)="store.toggleDrafts()"
+      >
+        @if (store.activeProfile()?.includeDrafts) {
+          <q-icon name="check" [size]="12" />
+        }
+        Drafts
+      </button>
+      @if (store.filtering()) {
+        <button class="q-btn q-btn--ghost q-btn--sm" (click)="store.clearFilters()">Clear filters</button>
+      }
+      <label class="q-search">
+        <q-icon name="search" />
+        <input
+          class="q-input q-input--mono"
+          type="search"
+          placeholder="Filter by title or repo"
+          aria-label="Filter by title or repo"
+          [value]="store.search()"
+          (input)="store.search.set($any($event.target).value)"
+        />
+      </label>
+    </div>
+
+    <section class="board-section" aria-labelledby="sweep-title">
+      <header class="board-section__head">
+        <h2 id="sweep-title" class="board-section__title">
+          Sweep
+          @if (store.result()) {
+            <span class="board-section__count">{{ store.sweep().length }}</span>
+          }
+        </h2>
+        @if (store.sprintRisk(); as risk) {
+          <p class="sprint-risk" [class.sprint-risk--ok]="risk.notApproved === 0">
+            <q-icon [name]="risk.notApproved === 0 ? 'circle-check' : 'triangle-alert'" [size]="12" />
+            {{ sprintLine(risk) }}
+          </p>
+        }
+        <span class="board-section__actions">
+          @if (store.quiet().length > 0) {
+            <button
+              class="q-chip"
+              title="Only waiting or stale, or untouched for a month"
+              [attr.aria-pressed]="store.showQuiet()"
+              (click)="store.showQuiet.set(!store.showQuiet())"
+            >
+              <q-icon [name]="store.showQuiet() ? 'eye' : 'eye-off'" [size]="12" />
+              Show quiet ({{ store.quiet().length }})
+            </button>
+          }
+          @if (store.snoozed().length > 0) {
+            <button
+              class="q-chip"
+              [attr.aria-pressed]="store.showSnoozed()"
+              (click)="store.showSnoozed.set(!store.showSnoozed())"
+            >
+              <q-icon [name]="store.showSnoozed() ? 'eye' : 'eye-off'" [size]="12" />
+              Show snoozed ({{ store.snoozed().length }})
+            </button>
+          }
+        </span>
+      </header>
+      @if (!store.result()) {
+        @if (store.loading()) {
+          <ng-container *ngTemplateOutlet="skeleton; context: { rows: sweepSkeleton }" />
+        } @else {
+          <div class="q-empty">
+            <q-icon name="refresh-cw" [size]="20" />
+            <p class="q-empty__title">No pull requests yet</p>
+            <p class="q-empty__meta">Refresh to sweep this period.</p>
+          </div>
+        }
+      } @else if (sweepRows().length > 0) {
+        <div class="q-table-wrap">
+          <table class="q-table" data-density="compact">
             <thead>
               <tr>
-                <th>PR</th>
-                @if (!section.merged) {
-                  <th class="ci-col" title="Latest commit's checks">CI</th>
-                }
-                <th>Title</th>
-                <th>Author</th>
-                <th class="num">Comments</th>
-                <th class="num">Δ</th>
-                @if (!section.merged) {
-                  <th>Awaiting</th>
-                }
-                <th class="num">{{ section.merged ? 'Merged' : 'Updated' }}</th>
+                <th scope="col" class="col-ref">PR</th>
+                <th scope="col" class="col-ci">CI</th>
+                <th scope="col" class="col-title">Title</th>
+                <th scope="col">Why</th>
+                <th scope="col">Author</th>
+                <th scope="col" class="col-next">Next step</th>
               </tr>
             </thead>
             <tbody>
-              @for (pr of section.rows; track pr.url) {
-                <tr
-                  class="clickable"
-                  tabindex="0"
-                  role="button"
-                  [attr.aria-label]="'Open ' + pr.repo + '#' + pr.number + ' — ' + pr.title"
-                  [title]="pr.url"
-                  (click)="store.openPr(pr)"
-                  (keydown.enter)="store.openPr(pr)"
-                  (keydown.space)="store.openPr(pr); $event.preventDefault()"
-                >
-                  <td class="pr-ref">{{ pr.repo }}#{{ pr.number }}</td>
-                  @if (!section.merged) {
-                    <td class="ci-col">
-                      @if (pr.ci; as ci) {
-                        <span
-                          class="ci-dot ci-{{ ci }}"
-                          [attr.aria-label]="'CI ' + ci"
-                          [title]="'CI ' + ci"
-                        ></span>
-                      }
-                    </td>
-                  }
-                  <td>
-                    {{ pr.title }}
-                    @if (pr.isDraft) {
-                      <span class="draft-tag">draft</span>
-                    }
-                    @if (section.queue && waitingDays(pr) >= 1) {
-                      <span
-                        class="wait-tag"
-                        [class.wait-hot]="isWaitHot(pr)"
-                        [title]="'Your review was requested ' + waitingDays(pr) + ' day(s) ago'"
+              <!-- Rows aren't one big button here: they hold buttons of their own. -->
+              @for (pr of sweepRows(); track pr.url) {
+                <tr [class.is-muted]="pr.quiet || store.isSnoozed(pr)">
+                  <td class="col-ref mono">{{ pr.repo }}#{{ pr.number }}</td>
+                  <td class="col-ci"><q-ci [state]="pr.ci" /></td>
+                  <td class="col-title">
+                    <span class="title-cell">
+                      <button
+                        class="pr-link"
+                        [title]="pr.url"
+                        [attr.aria-label]="'Open ' + pr.repo + '#' + pr.number + ': ' + pr.title"
+                        (click)="store.openPr(pr)"
                       >
-                        waiting {{ waitingDays(pr) }}d
-                      </span>
-                    }
+                        {{ pr.title }}
+                      </button>
+                      @if (pr.isDraft) {
+                        <span class="q-tag">draft</span>
+                      }
+                    </span>
                   </td>
-                  <td>{{ pr.author }}</td>
-                  <td class="num">{{ pr.comments || '' }}</td>
-                  <td class="num">
-                    <span class="pos">+{{ pr.additions }}</span>
-                    <span class="neg">−{{ pr.deletions }}</span>
+                  <td>
+                    <span class="reason reason--{{ tier(pr.attention[0]) }}">
+                      <span class="q-dot" aria-hidden="true"></span>
+                      <span class="reason__label">{{ label(pr.attention[0]) }}</span>
+                      @if (pr.attention[0].since; as since) {
+                        <span class="reason__age" [title]="'Since ' + since">{{ age(since) }}</span>
+                      }
+                      @for (other of pr.attention.slice(1); track other.reason) {
+                        <span class="q-tag">{{ label(other) }}</span>
+                      }
+                      @if (pr.quiet) {
+                        <span class="q-tag">quiet</span>
+                      } @else if (store.isSnoozed(pr)) {
+                        <span class="q-tag">snoozed</span>
+                      }
+                    </span>
                   </td>
-                  @if (!section.merged) {
-                    <td class="why">{{ pr.requestedReviewers.join(', ') }}</td>
-                  }
-                  <td class="num" [class.stale]="!section.merged && isStale(pr)">{{ ago(pr) }}</td>
+                  <td class="col-author">{{ pr.author }}</td>
+                  <td class="col-next">
+                    <span class="next-step">
+                      <button
+                        class="q-btn q-btn--sm"
+                        [attr.aria-label]="pr.attention[0].action + ': ' + pr.repo + '#' + pr.number"
+                        (click)="store.openUrl(pr.attention[0].href)"
+                      >
+                        {{ pr.attention[0].action }}
+                        <q-icon name="external-link" [size]="12" />
+                      </button>
+                      @if (pr.quiet) {
+                        <!-- quiet rows have no snooze: they're already out of the way -->
+                      } @else if (store.isSnoozed(pr)) {
+                        <button
+                          class="q-btn q-btn--ghost q-btn--sm"
+                          [attr.aria-label]="'Unsnooze ' + pr.repo + '#' + pr.number"
+                          (click)="store.unsnooze(pr)"
+                        >
+                          Unsnooze
+                        </button>
+                      } @else {
+                        <button
+                          class="q-btn q-btn--ghost q-btn--sm"
+                          title="Hide until it changes, gets worse, or tomorrow"
+                          [attr.aria-label]="'Snooze ' + pr.repo + '#' + pr.number"
+                          (click)="store.snooze(pr)"
+                        >
+                          <q-icon name="bell-off" [size]="12" />
+                          Snooze
+                        </button>
+                      }
+                    </span>
+                  </td>
                 </tr>
               }
             </tbody>
           </table>
+        </div>
+      } @else if (store.filtering()) {
+        <div class="q-empty">
+          <q-icon name="search" [size]="20" />
+          <p class="q-empty__title">No PRs match these filters</p>
+          <p class="q-empty__meta">Nothing flagged among the PRs these filters show.</p>
+        </div>
+      } @else {
+        <div class="q-empty q-empty--good">
+          <q-icon name="circle-check" [size]="20" />
+          <p class="q-empty__title">Nothing needs attention</p>
+          @if (hiddenNote(); as note) {
+            <p class="q-empty__meta">{{ note }}</p>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- Before the first sweep, the status tables only show while one is loading. -->
+    @for (section of store.result() || store.loading() ? sections() : []; track section.id) {
+      <section class="board-section" [attr.aria-labelledby]="section.id">
+        <header class="board-section__head">
+          <h2 [id]="section.id" class="board-section__title">
+            {{ section.title }}
+            @if (store.result()) {
+              <span class="board-section__count">{{ section.rows.length }}</span>
+            }
+          </h2>
+        </header>
+        @if (!store.result()) {
+          <ng-container *ngTemplateOutlet="skeleton; context: { rows: skeletonRows }" />
+        } @else if (section.rows.length > 0) {
+          <div class="q-table-wrap">
+            <table class="q-table" data-density="dense">
+              <thead>
+                <tr>
+                  <th scope="col" class="col-ref">PR</th>
+                  @if (!section.merged) {
+                    <th scope="col" class="col-ci">CI</th>
+                  }
+                  <th scope="col" class="col-title">Title</th>
+                  <th scope="col">Author</th>
+                  <th scope="col" class="num">Comments</th>
+                  <th scope="col" class="num">
+                    <span aria-hidden="true" title="Lines added and removed">Δ</span>
+                    <span class="sr-only">Lines changed</span>
+                  </th>
+                  @if (!section.merged) {
+                    <th scope="col">Awaiting</th>
+                  }
+                  <th scope="col" class="num">{{ section.merged ? 'Merged' : 'Updated' }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (pr of section.rows; track pr.url) {
+                  <tr
+                    class="clickable"
+                    tabindex="0"
+                    role="button"
+                    [attr.aria-label]="'Open ' + pr.repo + '#' + pr.number + ': ' + pr.title"
+                    [title]="pr.url"
+                    (click)="store.openPr(pr)"
+                    (keydown.enter)="store.openPr(pr)"
+                    (keydown.space)="store.openPr(pr); $event.preventDefault()"
+                  >
+                    <td class="col-ref mono">{{ pr.repo }}#{{ pr.number }}</td>
+                    @if (!section.merged) {
+                      <td class="col-ci"><q-ci [state]="pr.ci" /></td>
+                    }
+                    <td class="col-title">
+                      <span class="title-cell">
+                        <span class="pr-title">{{ pr.title }}</span>
+                        @if (pr.isDraft) {
+                          <span class="q-tag">draft</span>
+                        }
+                        @if (section.queue && waitingDays(pr) >= 1) {
+                          <span
+                            class="q-tag"
+                            [class.q-tag--warning]="isWaitHot(pr)"
+                            [title]="'Your review was requested ' + waitingDays(pr) + ' day(s) ago'"
+                          >
+                            waiting {{ waitingDays(pr) }}d
+                          </span>
+                        }
+                      </span>
+                    </td>
+                    <td class="col-author">{{ pr.author }}</td>
+                    <td class="num mono">{{ pr.comments || '' }}</td>
+                    <td class="num mono">
+                      <span class="delta-add">+{{ pr.additions }}</span>
+                      <span class="delta-del">−{{ pr.deletions }}</span>
+                    </td>
+                    @if (!section.merged) {
+                      <td class="col-awaiting">{{ pr.requestedReviewers.join(', ') }}</td>
+                    }
+                    @if (!section.merged && isStale(pr)) {
+                      <td class="num mono is-stale" [title]="'Untouched for ' + staleDays() + '+ days'">
+                        <q-icon name="clock" [size]="12" />
+                        {{ ago(pr) }}
+                      </td>
+                    } @else {
+                      <td class="num mono age">{{ ago(pr) }}</td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         } @else {
-          <p class="empty-note">{{ section.emptyNote }}</p>
+          <p class="q-empty q-empty--inline">{{ filteredOut(section) ? 'No PRs match these filters.' : section.emptyNote }}</p>
         }
       </section>
     }
+
+    <ng-template #skeleton let-rows="rows">
+      <div class="q-table-wrap skeleton" role="status">
+        <span class="sr-only">Loading pull requests</span>
+        @for (row of rows; track row) {
+          <div class="skeleton__row" aria-hidden="true">
+            <span class="skeleton__bar"></span>
+            <span class="skeleton__bar"></span>
+            <span class="skeleton__bar"></span>
+            <span class="skeleton__bar"></span>
+          </div>
+        }
+      </div>
+    </ng-template>
   `,
 })
 export class BoardComponent {
   readonly store = inject(BoardStore);
+  readonly skeletonRows = SKELETON_ROWS;
+  readonly sweepSkeleton = SWEEP_SKELETON_ROWS;
 
-  readonly sections = computed<BoardSection[]>(() => [
-    {
-      title: 'Waiting on my review',
-      rows: this.store.queue(),
-      merged: false,
-      queue: true,
-      emptyNote: 'Nothing waiting on you.',
-    },
-    {
-      title: 'Needs review',
-      rows: this.store.needsReview(),
-      merged: false,
-      emptyNote: 'Nothing waiting on review.',
-    },
-    {
-      title: 'Changes requested',
-      rows: this.store.changesRequested(),
-      merged: false,
-      emptyNote: 'None.',
-    },
-    {
-      title: 'Approved — ready to merge',
-      rows: this.store.approved(),
-      merged: false,
-      emptyNote: 'None ready to merge.',
-    },
-    {
-      title: 'Merged in range',
-      rows: this.store.merged(),
-      merged: true,
-      emptyNote: 'Nothing merged in this range yet.',
-    },
-  ]);
+  readonly sections = computed<BoardSection[]>(() => {
+    const period = this.store.period();
+    return [
+      {
+        id: 'queue-title',
+        title: 'Waiting on my review',
+        rows: this.store.queue(),
+        merged: false,
+        queue: true,
+        emptyNote: 'Nothing waiting on you.',
+      },
+      {
+        id: 'review-title',
+        title: 'Needs review',
+        rows: this.store.needsReview(),
+        merged: false,
+        emptyNote: 'Nothing waiting on review.',
+      },
+      {
+        id: 'changes-title',
+        title: 'Changes requested',
+        rows: this.store.changesRequested(),
+        merged: false,
+        emptyNote: 'Nothing sent back for changes.',
+      },
+      {
+        id: 'approved-title',
+        title: 'Approved, ready to merge',
+        rows: this.store.approved(),
+        merged: false,
+        emptyNote: 'Nothing approved and waiting to merge.',
+      },
+      {
+        id: 'merged-title',
+        title: period?.sprint ? `Merged in ${period.sprint.name}` : 'Merged in this range',
+        rows: this.store.merged(),
+        merged: true,
+        emptyNote: period?.sprint ? `Nothing merged in ${period.sprint.name} yet.` : 'Nothing merged in this range yet.',
+      },
+    ];
+  });
+
+  readonly health = computed<HealthCell[]>(() => {
+    const labels = ['My queue', 'Needs review', 'Changes requested', 'Approved', 'Merged'];
+    if (!this.store.result()) return labels.map((label) => ({ label, count: null, tone: null, note: '' }));
+    const sprint = this.store.period()?.sprint;
+    return [
+      this.queueCell(labels[0], this.store.queue()),
+      this.openCell(labels[1], this.store.needsReview(), 'Nothing waiting on review'),
+      this.openCell(labels[2], this.store.changesRequested(), 'Nothing sent back'),
+      this.openCell(labels[3], this.store.approved(), 'Nothing waiting to merge'),
+      {
+        label: labels[4],
+        count: this.store.merged().length,
+        tone: 'info',
+        note: sprint ? `In ${sprint.name}` : 'In this range',
+      },
+    ];
+  });
 
   /** Active Sweep rows, then the snoozed and quiet ones when they're revealed. */
   readonly sweepRows = computed(() => [
@@ -329,22 +449,29 @@ export class BoardComponent {
     ...(this.store.showQuiet() ? this.store.quiet() : []),
   ]);
 
-  /** "2 snoozed, 12 quiet" for the empty state; null when nothing is hidden. */
+  /** "2 snoozed · 12 quiet" for the empty state; null when nothing is hidden. */
   readonly hiddenNote = computed(() => {
     const parts = [
       this.store.snoozed().length ? `${this.store.snoozed().length} snoozed` : '',
       this.store.quiet().length ? `${this.store.quiet().length} quiet` : '',
     ].filter(Boolean);
-    return parts.length ? parts.join(', ') : null;
+    return parts.length ? parts.join(' · ') : null;
   });
+
+  readonly staleDays = computed(() => this.store.activeProfile()?.staleDays ?? 0);
 
   authors(): string[] {
     return this.store.activeProfile()?.authors ?? [];
   }
 
+  /** The queue ignores author chips, so only the text filter can empty it. */
+  filteredOut(section: BoardSection): boolean {
+    return section.queue ? this.store.search().trim() !== '' : this.store.filtering();
+  }
+
   /** Untouched longer than the configured threshold (0 = feature off). */
   isStale(pr: PrRow): boolean {
-    const days = this.store.activeProfile()?.staleDays ?? 0;
+    const days = this.staleDays();
     return days > 0 && Date.now() - Date.parse(pr.updatedAt) > days * 86_400_000;
   }
 
@@ -356,7 +483,7 @@ export class BoardComponent {
 
   /** Waiting past the same threshold the stale flag uses (0 = never hot). */
   isWaitHot(pr: PrRow): boolean {
-    const days = this.store.activeProfile()?.staleDays ?? 0;
+    const days = this.staleDays();
     return days > 0 && this.waitingDays(pr) >= days;
   }
 
@@ -391,5 +518,33 @@ export class BoardComponent {
     if (min < 60) return `${min}m ago`;
     const h = Math.floor(min / 60);
     return h < 48 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+  }
+
+  /** Warn when anything waited past the stale threshold; otherwise say how old the oldest is. */
+  private openCell(label: string, rows: PrRow[], none: string): HealthCell {
+    if (rows.length === 0) return { label, count: 0, tone: 'healthy', note: none };
+    const days = this.staleDays();
+    const stale = rows.filter((r) => this.isStale(r)).length;
+    if (stale > 0) return { label, count: rows.length, tone: 'warning', note: `${stale} untouched for ${days}+ days` };
+    const oldest = rows.reduce((a, r) => (r.updatedAt < a.updatedAt ? r : a));
+    return {
+      label,
+      count: rows.length,
+      tone: days > 0 ? 'healthy' : 'info',
+      note: `All active in the last ${this.age(oldest.updatedAt)}`,
+    };
+  }
+
+  private queueCell(label: string, rows: PrRow[]): HealthCell {
+    if (rows.length === 0) return { label, count: 0, tone: 'healthy', note: 'Nothing waiting on you' };
+    const hot = rows.filter((r) => this.isWaitHot(r)).length;
+    if (hot > 0) return { label, count: rows.length, tone: 'warning', note: `${hot} waiting ${this.staleDays()}+ days` };
+    const requested = rows.map((r) => r.reviewRequestedAt).filter((t): t is string => !!t).sort();
+    return {
+      label,
+      count: rows.length,
+      tone: 'info',
+      note: requested.length ? `Longest wait ${this.age(requested[0])}` : 'Waiting on you',
+    };
   }
 }

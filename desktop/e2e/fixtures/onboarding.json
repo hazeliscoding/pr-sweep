@@ -1,0 +1,4 @@
+{
+  "auth": "no-token",
+  "profile": { "org": "", "authors": [], "range": { "start": "-12d", "end": null } }
+}

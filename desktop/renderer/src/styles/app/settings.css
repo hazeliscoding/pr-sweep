@@ -1,0 +1,156 @@
+/* Settings cards and form fields, the switch, and the onboarding dialog. */
+
+.settings { display: flex; flex-direction: column; gap: var(--space-6); max-width: 760px; }
+
+.q-card {
+  padding: var(--space-6) var(--space-7);
+  background: var(--surface-panel);
+  border: var(--border-width) solid var(--border-hairline);
+  border-radius: var(--radius-3);
+  /* Linked to from the top bar (#sprints): land with the page's own gap above. */
+  scroll-margin-top: var(--space-6);
+}
+.q-card__head { margin-bottom: var(--space-6); }
+.q-card__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin: 0;
+  font: var(--text-section-title);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-1);
+}
+.q-card__meta { font: var(--text-compact); color: var(--text-2); }
+.q-card__desc { max-width: 64ch; margin: var(--space-2) 0 0; font: var(--text-compact); color: var(--text-2); }
+.q-card__subtitle {
+  margin: var(--space-8) 0 var(--space-3);
+  font: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.q-card__foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-6); }
+.q-card__foot .spacer { flex: 1 1 auto; }
+.q-card .q-table-wrap { background: var(--surface-app); }
+.q-card .q-table th { background: var(--surface-app); }
+
+.q-field { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-6); }
+.q-field:last-child { margin-bottom: 0; }
+.q-field__label { font: var(--text-compact); font-weight: var(--weight-semibold); color: var(--text-1); }
+.q-field__hint { font: var(--text-compact); color: var(--text-2); }
+.q-field__hint code { font: var(--text-data); color: var(--text-1); }
+.q-field > .q-input { width: 100%; max-width: 320px; }
+.q-field > .q-input.q-input--num { width: 72px; }
+.q-field > .q-input[type="date"] { width: 180px; }
+.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6) var(--space-8); }
+.field-grid .q-field { margin-bottom: 0; }
+.preview-hint { margin: 0 0 var(--space-4); }
+
+.with-unit { display: inline-flex; align-items: center; gap: var(--space-3); font: var(--text-compact); color: var(--text-2); }
+.inline-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+
+.q-input--sm { height: 24px; }
+.q-input--num { width: 72px; text-align: right; }
+/* Inline edit: reads as table text until it's hovered or focused. */
+.q-input--inline { width: 100%; height: 24px; padding: 0 var(--space-3); background: transparent; border-color: transparent; }
+.q-input--inline:hover:not(:disabled) { background: var(--bg-2); border-color: var(--border-2); }
+.q-input--inline:focus { background: var(--bg-2); }
+.q-input--inline.q-input--num { width: 64px; }
+.q-table .col-title .q-input--inline { max-width: 280px; }
+.q-table .col-actions { text-align: right; }
+.row-actions { display: inline-flex; justify-content: flex-end; gap: var(--space-2); }
+
+.author-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; padding: 0; list-style: none; }
+.q-tag--mono { height: 22px; font: var(--text-data); color: var(--text-1); }
+.q-tag--accent { color: var(--text-1); background: var(--accent-subtle); border-color: var(--accent-border); }
+.q-tag__x {
+  display: inline-flex;
+  margin: 0 calc(-1 * var(--space-1)) 0 var(--space-2);
+  padding: 0;
+  color: var(--text-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-1);
+  cursor: pointer;
+}
+.q-tag__x:hover { color: var(--critical-text); }
+.q-tag__x:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.connection { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-6); color: var(--text-1); }
+
+/* Switch: a checkbox with role="switch". The knob's side, not only its color, shows the state. */
+.q-switch { position: relative; display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-5); color: var(--text-1); cursor: pointer; }
+.q-switch > input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.q-switch__track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 16px;
+  background: var(--bg-3);
+  border: var(--border-width) solid var(--border-3);
+  border-radius: var(--radius-2);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.q-switch__track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--text-2);
+  border-radius: var(--radius-1);
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+.q-switch > input:checked + .q-switch__track { background: var(--accent); border-color: var(--accent); }
+.q-switch > input:checked + .q-switch__track::after { background: var(--text-inverse); transform: translateX(12px); }
+.q-switch > input:focus-visible + .q-switch__track { box-shadow: var(--focus-ring); }
+
+/* The onboarding dialog. */
+.q-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  background: var(--scrim);
+}
+.q-modal {
+  width: 480px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  padding: var(--space-8);
+  color: var(--text-1);
+  background: var(--surface-card);
+  border-radius: var(--radius-4);
+  box-shadow: var(--shadow-4);
+  animation: q-slide-up var(--dur-panel) var(--ease-entrance);
+}
+.q-modal__head { margin-bottom: var(--space-7); }
+.q-modal__title { margin: 0; font: var(--text-page-title); letter-spacing: var(--tracking-tight); }
+.q-modal__desc { margin: var(--space-3) 0 0; font: var(--text-body); color: var(--text-2); }
+.q-modal__alt { margin: var(--space-5) 0 0; font: var(--text-compact); color: var(--text-2); text-align: center; }
+.q-modal .q-field > .q-input { max-width: none; }
+.q-btn--block { width: 100%; height: 36px; }
+.token-steps { margin: var(--space-6) 0; padding-left: var(--space-7); font: var(--text-compact); color: var(--text-2); }
+.token-steps li + li { margin-top: var(--space-3); }
+.token-steps code { font: var(--text-data); color: var(--text-1); }
+.token-input { flex: 1 1 auto; }
+.device-code { margin-top: var(--space-5); text-align: center; }
+.device-code p { margin: 0; font: var(--text-compact); color: var(--text-2); }
+.device-code__code {
+  display: inline-block;
+  margin: var(--space-5) auto;
+  padding: var(--space-4) var(--space-6);
+  font: var(--text-metric);
+  letter-spacing: 0.2em;
+  color: var(--text-1);
+  background: var(--bg-inset);
+  border: var(--border-width) solid var(--border-2);
+  border-radius: var(--radius-2);
+}
+.q-inline-error { display: flex; align-items: flex-start; gap: var(--space-3); margin: var(--space-5) 0 0; font: var(--text-compact); color: var(--critical-text); }
+.q-inline-error .q-icon { flex: 0 0 auto; margin-top: 1px; }

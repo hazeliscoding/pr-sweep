@@ -2,9 +2,13 @@ import { Injectable, computed, signal } from '@angular/core';
 import {
   AuthStatus,
   DateRange,
+  Period,
   PrRow,
   Profile,
+  ResolvedPeriod,
   ProfilePatch,
+  SprintPreview,
+  SprintSchedule,
   SweepConfig,
   SweepConfigPatch,
   SweepResult,
@@ -33,6 +37,12 @@ export class BoardStore {
   readonly search = signal('');
   /** Auto-update progress pushed from main (header pill); null = nothing in flight. */
   readonly updateState = signal<UpdateState | null>(null);
+  /** The active profile's sprint or custom range, resolved by main on every refresh. */
+  readonly period = signal<ResolvedPeriod | null>(null);
+  /** The last refresh failed, background ones included (they don't raise the banner). */
+  readonly lastFailed = signal(false);
+  /** Ticks every 30 s so relative ages ("2m ago") stay true between refreshes. */
+  readonly clock = signal(Date.now());
 
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -45,7 +55,8 @@ export class BoardStore {
     return cfg.profiles.find((p) => p.id === cfg.activeProfileId) ?? cfg.profiles[0] ?? null;
   });
 
-  readonly range = computed<DateRange | null>(() => this.activeProfile()?.range ?? null);
+  /** What the sweep covers: the resolved sprint or custom range. */
+  readonly range = computed<DateRange | null>(() => this.period()?.range ?? this.activeProfile()?.range ?? null);
 
   /** True until a token is stored and fully working — drives the onboarding overlay. */
   readonly needsToken = computed(() => {
@@ -91,13 +102,25 @@ export class BoardStore {
     this.applyFilters(this.result()?.merged ?? []).sort(byNewest((r) => r.mergedAt ?? r.updatedAt)),
   );
 
+  /** An author chip or the text filter is narrowing the board. */
+  readonly filtering = computed(() => this.authorFilter().size > 0 || this.search().trim() !== '');
+
   readonly openCount = computed(
     () => this.needsReview().length + this.changesRequested().length + this.approved().length,
   );
 
   readonly fetchedAgeMin = computed<number | null>(() => {
     const ts = this.result()?.fetchedAt;
-    return ts ? Math.max(0, Math.round((Date.now() - Date.parse(ts)) / 60000)) : null;
+    return ts ? Math.max(0, Math.round((this.clock() - Date.parse(ts)) / 60000)) : null;
+  });
+
+  /** Quorum's Freshness: updating now, failed last time, overdue, or current. */
+  readonly freshness = computed<'updated' | 'updating' | 'delayed' | 'lost'>(() => {
+    if (this.loading()) return 'updating';
+    if (this.lastFailed()) return 'lost';
+    const age = this.fetchedAgeMin();
+    const every = this.config()?.autoRefreshMinutes ?? 0;
+    return every > 0 && age !== null && age > every * 2 ? 'delayed' : 'updated';
   });
 
   private slice(bucket: PrRow['bucket']): PrRow[] {
@@ -117,19 +140,23 @@ export class BoardStore {
 
   async init(): Promise<void> {
     this.api.onUpdateState((state) => this.updateState.set(state));
+    setInterval(() => this.clock.set(Date.now()), 30_000);
     try {
       // Config + cached snapshot are local reads — paint the board with them
       // immediately. The auth probe and live sweep (both network) come after,
       // quietly replacing the stale data.
       const [config, snapshot] = await Promise.all([this.api.getConfig(), this.api.latestSweep()]);
       this.config.set(config);
+      await this.loadPeriod();
       const p = this.activeProfile();
+      const range = this.range();
       if (
         snapshot &&
         p &&
+        range &&
         snapshot.org === p.org &&
-        snapshot.range.start === p.range.start &&
-        (snapshot.range.end ?? null) === (p.range.end ?? null)
+        snapshot.range.start === range.start &&
+        (snapshot.range.end ?? null) === (range.end ?? null)
       ) {
         this.result.set(snapshot);
       }
@@ -143,21 +170,27 @@ export class BoardStore {
   }
 
   async refresh(opts: { auto?: boolean } = {}): Promise<void> {
-    const range = this.range();
-    if (!range?.start || this.loading()) return;
+    if (this.loading()) return;
     this.loading.set(true);
     if (!opts.auto) this.error.set(null);
     try {
+      // Re-resolve first: on the first refresh after a sprint ends, "Current"
+      // moves to the next one (a new range, so main sweeps it in full).
+      await this.loadPeriod();
+      const range = this.range();
+      if (!range?.start) return;
       // Timer refreshes go incremental (cheap for big orgs); manual ones are
       // always a full resweep so Refresh doubles as the recovery lever.
       const result = await this.api.fetchPrs(range, opts.auto ? 'auto' : 'full');
       this.result.set(result);
       this.error.set(null);
+      this.lastFailed.set(false);
       this.syncTray(result);
     } catch (e) {
       // A background refresh failing (laptop offline) shouldn't blank a board
       // that's already showing data — surface quietly only for manual actions.
-      if (!opts.auto) this.error.set((e as Error).message);
+      this.lastFailed.set(true);
+      if (!opts.auto) this.error.set(cleanError(e));
     } finally {
       this.loading.set(false);
     }
@@ -179,20 +212,50 @@ export class BoardStore {
     void this.refresh();
   }
 
-  /** Persist a range edit and refetch. An empty end means open-ended. */
+  /** Persist a custom-range edit and refetch. An empty end means open-ended. */
   setRange(patch: Partial<DateRange>): void {
-    const current = this.range() ?? { start: '', end: null };
+    const current = this.activeProfile()?.range ?? { start: '', end: null };
     const next: DateRange = { ...current, ...patch };
     if (!next.start) return;
     if (next.end && next.end < next.start) next.end = null;
-    this.patchProfile({ range: next });
+    this.patchProfile({ range: next, period: 'custom' });
     void this.refresh();
+  }
+
+  /** Show the current sprint, a pinned one, or the custom range. */
+  setPeriod(period: Period): void {
+    this.patchProfile({ period });
+    void this.refresh();
+  }
+
+  /**
+   * Save the active profile's sprint schedule and sweep what it now points at.
+   * A new schedule opens on the current sprint; clearing one goes back to the
+   * custom range; an edit keeps whichever sprint is showing.
+   */
+  setSchedule(sprints: SprintSchedule | null): void {
+    const had = !!this.activeProfile()?.sprints;
+    this.patchProfile(sprints ? (had ? { sprints } : { sprints, period: 'current' }) : { sprints: null, period: 'custom' });
+    void this.refresh();
+  }
+
+  previewSprints(schedule: SprintSchedule): Promise<SprintPreview> {
+    return this.api.previewSprints(schedule);
+  }
+
+  private async loadPeriod(): Promise<void> {
+    this.period.set(await this.api.resolvePeriod());
   }
 
   toggleAuthor(login: string): void {
     const next = new Set(this.authorFilter());
     if (!next.delete(login)) next.add(login);
     this.authorFilter.set(next);
+  }
+
+  clearFilters(): void {
+    this.authorFilter.set(new Set());
+    this.search.set('');
   }
 
   async saveToken(token: string): Promise<AuthStatus> {
@@ -276,6 +339,8 @@ export class BoardStore {
       range: active?.range ?? { start: new Date().toISOString().slice(0, 10), end: null },
       includeDrafts: false,
       staleDays: active?.staleDays ?? 5,
+      sprints: active?.sprints ?? null,
+      period: active?.sprints ? 'current' : 'custom',
     };
     const next = { ...cfg, profiles: [...cfg.profiles, profile], activeProfileId: profile.id };
     this.config.set(next);
@@ -423,6 +488,11 @@ function loadSnoozes(): Record<string, Snooze> {
 function localDay(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Electron wraps errors thrown in main ("Error invoking remote method 'prs:fetch': Error: …"); keep the message. */
+function cleanError(e: unknown): string {
+  return String((e as Error)?.message ?? e).replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '');
 }
 
 function bySeverityThenAge(a: PrRow, b: PrRow): number {

@@ -52,4 +52,45 @@ const svc = new ConfigService(join(dir, 'w.json'));
 const saved = svc.set({ activeProfileId: 'nope' });
 assert.equal(saved.activeProfileId, saved.profiles[0].id);
 
+// Profiles from before v0.12 get no sprint schedule and keep their custom range.
+{
+  const file = join(dir, 'v011.json');
+  writeFileSync(
+    file,
+    JSON.stringify({
+      profiles: [{ id: 'a', name: 'A', org: 'acme', authors: [], range: { start: '2026-09-01', end: null }, includeDrafts: false, staleDays: 5 }],
+      activeProfileId: 'a',
+    }),
+  );
+  const prof = activeProfile(new ConfigService(file).get());
+  assert.strictEqual(prof.sprints, null);
+  assert.equal(prof.period, 'custom');
+  assert.deepEqual(prof.range, { start: '2026-09-01', end: null }, 'range untouched');
+}
+
+// A sprint schedule and a pinned period round-trip; broken ones fall back safely.
+{
+  const sprints = { pattern: 'Sprint {n}', first: { number: 24, start: '2026-09-14' }, lengthDays: 14, lengths: { 30: 21 }, names: { 30: 'Holiday sprint' } };
+  const file = join(dir, 'sprints.json');
+  const svc2 = new ConfigService(file);
+  svc2.set({ profiles: [{ ...activeProfile(svc2.get()), sprints, period: { sprint: 25 } }] });
+  const back = activeProfile(new ConfigService(file).get());
+  assert.deepEqual(back.sprints, sprints);
+  assert.deepEqual(back.period, { sprint: 25 });
+
+  const broken = join(dir, 'broken.json');
+  writeFileSync(
+    broken,
+    JSON.stringify({
+      profiles: [
+        { id: 'b', name: 'B', org: 'acme', authors: [], range: { start: '2026-09-01', end: null }, sprints: { ...sprints, lengthDays: 0 }, period: { sprint: 'x' } },
+      ],
+      activeProfileId: 'b',
+    }),
+  );
+  const fixed = activeProfile(new ConfigService(broken).get());
+  assert.strictEqual(fixed.sprints, null, 'a zero-length sprint schedule is dropped');
+  assert.equal(fixed.period, 'custom', 'an unreadable period falls back to the custom range');
+}
+
 console.log('config.service: migration + activeProfile cases pass');

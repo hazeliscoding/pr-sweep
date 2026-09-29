@@ -9,8 +9,10 @@
  */
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import { readFileSync } from 'fs';
 import * as path from 'path';
 import { ConfigService } from './core/config.service';
+import { Fixture, loadFixture } from './core/fixture';
 import { GithubService } from './core/github.service';
 import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
@@ -143,6 +145,18 @@ function setupAutoUpdate(): void {
   setInterval(() => void check(), UPDATE_CHECK_INTERVAL_MS);
 }
 
+/**
+ * PRSWEEP_FIXTURE=<name>: canned sweeps from e2e/fixtures for reviewing the UI
+ * in every state (see core/fixture.ts). Unpackaged builds only, so an installed
+ * app can't be pointed at fake data.
+ */
+function readFixture(): Fixture | null {
+  const name = process.env.PRSWEEP_FIXTURE;
+  if (!name || app.isPackaged) return null;
+  const dir = path.join(app.getAppPath(), 'e2e', 'fixtures');
+  return loadFixture(name, (n) => JSON.parse(readFileSync(path.join(dir, `${n}.json`), 'utf8')), Date.now());
+}
+
 app.whenReady().then(async () => {
   // A losing second instance is already quitting — don't flash a window/tray
   // in the moment before the quit lands.
@@ -156,6 +170,7 @@ app.whenReady().then(async () => {
     tokens,
     github: new GithubService(() => tokens.get()),
     snapshots: new SnapshotStore(path.join(userDataDir, 'snapshot.json')),
+    fixture: readFixture(),
   };
   registerIpc(services);
 
@@ -173,6 +188,10 @@ app.whenReady().then(async () => {
 
   await createWindow();
   setupAutoUpdate();
+  // A fixture can play update states into the header, as the updater would.
+  for (const { afterMs, state } of services.fixture?.update ?? []) {
+    setTimeout(() => win?.webContents.send('update:state', state), afterMs);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

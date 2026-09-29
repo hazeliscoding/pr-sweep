@@ -34,7 +34,14 @@
             "styles": [
               "src/styles.css"
             ],
-            "scripts": []
+            "scripts": [],
+            "assets": [
+              {
+                "glob": "*.txt",
+                "input": "licenses",
+                "output": "licenses"
+              }
+            ]
           },
           "configurations": {
             "production": {
@@ -50,7 +57,8 @@
                   "maximumError": "4kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "baseHref": "./index.html"
             },
             "development": {
               "optimization": false,

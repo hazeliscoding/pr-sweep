@@ -1,13 +1,13 @@
 {
   "name": "pr-sweep-desktop",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "author": "hazeliscoding",
   "description": "PR Sweep — a desktop PR dashboard for teams working across a GitHub organization.",
   "main": "dist/main/main/main.js",
   "scripts": {
     "build:main": "tsc -p tsconfig.json",
-    "test": "node src/main/core/oauth.service.test.mjs && node src/main/core/config.service.test.mjs && node src/main/core/github.service.test.mjs && node src/main/core/snapshot.store.test.mjs && node src/main/core/attention.test.mjs && node src/main/core/tray.text.test.mjs",
+    "test": "node src/main/core/oauth.service.test.mjs && node src/main/core/config.service.test.mjs && node src/main/core/github.service.test.mjs && node src/main/core/snapshot.store.test.mjs && node src/main/core/attention.test.mjs && node src/main/core/tray.text.test.mjs && node src/main/core/fixture.test.mjs && node src/main/core/sprints.test.mjs && node renderer/scripts/checks.test.mjs",
     "start": "electron .",
     "package": "electron-builder",
     "package:win": "electron-builder --win",
@@ -73,5 +73,8 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.9"
+  },
+  "allowScripts": {
+    "electron": true
   }
 }

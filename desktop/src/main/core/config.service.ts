@@ -4,7 +4,7 @@
  * class — no Electron imports — so it stays testable; main.ts supplies the path.
  */
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { DateRange, Profile, SweepConfig, SweepConfigPatch } from '../../shared/types';
+import { DateRange, Period, Profile, SprintSchedule, SweepConfig, SweepConfigPatch } from '../../shared/types';
 
 function rollingStart(): string {
   return new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
@@ -19,6 +19,8 @@ function defaultProfile(): Profile {
     range: { start: rollingStart(), end: null },
     includeDrafts: false,
     staleDays: 5,
+    sprints: null,
+    period: 'custom',
   };
 }
 
@@ -104,7 +106,37 @@ function normalizeProfile(p: Record<string, unknown>): Profile {
     range: { start: range.start || d.range.start, end: range.end ?? null },
     includeDrafts: (p['includeDrafts'] as boolean) ?? d.includeDrafts,
     staleDays: (p['staleDays'] as number) ?? d.staleDays,
+    // Profiles from before v0.12 have neither: no schedule, their own range.
+    sprints: normalizeSprints(p['sprints']),
+    period: normalizePeriod(p['period']),
   };
+}
+
+/** A schedule that can be computed from, or null. A broken one is dropped, never guessed at. */
+export function normalizeSprints(v: unknown): SprintSchedule | null {
+  if (!v || typeof v !== 'object') return null;
+  const s = v as Record<string, unknown>;
+  const first = (s['first'] ?? {}) as Record<string, unknown>;
+  const days = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 60;
+  if (typeof first['start'] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(first['start'])) return null;
+  if (!Number.isInteger(first['number']) || (first['number'] as number) < 0) return null;
+  if (!days(s['lengthDays'])) return null;
+  const byNumber = <T>(m: unknown, ok: (x: unknown) => x is T): Record<number, T> =>
+    Object.fromEntries(Object.entries((m ?? {}) as Record<string, unknown>).filter(([k, x]) => /^\d+$/.test(k) && ok(x))) as Record<number, T>;
+  const pattern = typeof s['pattern'] === 'string' && s['pattern'].trim() ? s['pattern'] : 'Sprint {n}';
+  return {
+    pattern,
+    first: { number: first['number'] as number, start: first['start'] },
+    lengthDays: s['lengthDays'] as number,
+    lengths: byNumber(s['lengths'], days),
+    names: byNumber(s['names'], (x): x is string => typeof x === 'string' && x.trim() !== ''),
+  };
+}
+
+function normalizePeriod(v: unknown): Period {
+  if (v === 'current' || v === 'custom') return v;
+  const sprint = (v as { sprint?: unknown } | null)?.sprint;
+  return Number.isInteger(sprint) ? { sprint: sprint as number } : 'custom';
 }
 
 /** Accepts a v0.6 flat range, or a pre-v0.6 sprint list covering today. */

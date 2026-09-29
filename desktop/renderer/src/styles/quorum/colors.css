@@ -1,0 +1,69 @@
+/* Quorum Design System: tokens/colors.css (claude.ai/design, "Quorum Design System").
+   Copied as-is so a later Quorum update can be diffed in. Local changes are marked AA.
+   Dark is the first-class theme; light is a full re-tuning, not an inversion. */
+:root, [data-theme="dark"]{
+  color-scheme:dark;
+  /* Neutral foundation */
+  --bg-0:#0A0C10;        /* app background, near-black, cool */
+  --bg-1:#0F1218;        /* panel */
+  --bg-2:#151920;        /* elevated surface, card */
+  --bg-3:#1B2029;        /* overlay, popover, hover surface */
+  --bg-4:#222834;        /* pressed / selected surface */
+  --bg-inset:#07090C;    /* code blocks, log viewer, wells */
+  --border-1:#1E242E;    /* hairline */
+  --border-2:#2A3240;    /* standard */
+  --border-3:#3A4453;    /* strong / focus rest */
+  --text-1:#E8ECF1;      /* primary */
+  --text-2:#98A2B3;      /* secondary */
+  --text-3:#8590A0;      /* tertiary, placeholders, micro labels. AA: was #5F6B7A (2.7–3.6:1) */
+  --text-4:#3E4754;      /* disabled */
+  --text-inverse:#0A0C10;
+  /* Accent (interactive) */
+  --accent:#2DD4BF;
+  --accent-hover:#5EEAD4;
+  --accent-active:#14B8A6;
+  --accent-text:#7FF0E0;
+  --accent-subtle:rgba(45,212,191,.10);
+  --accent-border:rgba(45,212,191,.35);
+  --accent-glow:0 0 0 1px rgba(45,212,191,.35),0 0 18px rgba(45,212,191,.18);
+  /* Semantic states */
+  --healthy:#3DD68C;      --healthy-text:#7BE8B3;  --healthy-subtle:rgba(61,214,140,.10);  --healthy-border:rgba(61,214,140,.35);
+  --warning:#F2B441;      --warning-text:#F8CE7A;  --warning-subtle:rgba(242,180,65,.12);  --warning-border:rgba(242,180,65,.40);
+  --critical:#F0555D;     --critical-text:#FF8A90; --critical-subtle:rgba(240,85,93,.12);   --critical-border:rgba(240,85,93,.45);
+  --info:#5B9CFF;         --info-text:#93BDFF;     --info-subtle:rgba(91,156,255,.12);     --info-border:rgba(91,156,255,.40);
+  --unknown:#5F6B7A;      --unknown-text:#98A2B3;  --unknown-subtle:rgba(95,107,122,.14);  --unknown-border:rgba(95,107,122,.45);
+  --paused:#A6ADBB;       --paused-text:#C4CAD4;   --paused-subtle:rgba(166,173,187,.10);  --paused-border:rgba(166,173,187,.35);
+  --running:#38BDF8;      --running-text:#7DD3FC;  --running-subtle:rgba(56,189,248,.12);  --running-border:rgba(56,189,248,.40);
+  --queued:#B48EFF;       --queued-text:#CDB4FF;   --queued-subtle:rgba(180,142,255,.12);  --queued-border:rgba(180,142,255,.40);
+  --maintenance:#E08E4A;  --maintenance-text:#F0B07F; --maintenance-subtle:rgba(224,142,74,.12); --maintenance-border:rgba(224,142,74,.40);
+  /* Semantic aliases */
+  --surface-app:var(--bg-0); --surface-panel:var(--bg-1); --surface-card:var(--bg-2); --surface-overlay:var(--bg-3); --surface-selected:var(--bg-4); --surface-inset:var(--bg-inset);
+  --text-body:var(--text-1); --text-muted:var(--text-2); --text-faint:var(--text-3); --text-link:var(--accent-text);
+  --border-hairline:var(--border-1); --border-default:var(--border-2); --border-strong:var(--border-3);
+  --focus-ring:0 0 0 2px var(--bg-0),0 0 0 4px var(--accent);
+  --scrim:rgba(4,6,9,.65);
+  --grid-line:rgba(152,162,179,.06);   /* graph-paper motif */
+  --grid-line-strong:rgba(152,162,179,.12);
+  --highlight-inset:inset 0 1px 0 rgba(255,255,255,.04);
+}
+[data-theme="light"]{
+  color-scheme:light;
+  --bg-0:#F3F4F6; --bg-1:#FAFAFB; --bg-2:#FFFFFF; --bg-3:#F6F7F9; --bg-4:#EDEFF3; --bg-inset:#F7F8FA;
+  --border-1:#E6E8EC; --border-2:#D7DBE2; --border-3:#BCC3CE;
+  --text-1:#171B22; --text-2:#525C6B; --text-3:#636D7C; --text-4:#B3BAC5; --text-inverse:#FFFFFF; /* AA: --text-3 was #7D8796 (3.2–3.6:1) */
+  --accent:#0E7C73; --accent-hover:#0F766E; --accent-active:#115E59; --accent-text:#0B7A70; /* AA: --accent was #0D9488 (a white button label reached 3.74:1) */
+  --accent-subtle:rgba(13,148,136,.10); --accent-border:rgba(13,148,136,.35); --accent-glow:0 0 0 1px rgba(13,148,136,.3),0 0 14px rgba(13,148,136,.12);
+  --healthy:#1E9E5E; --healthy-text:#177A49; --healthy-subtle:rgba(30,158,94,.10); --healthy-border:rgba(30,158,94,.35);
+  --warning:#B67D0F; /* AA: was #C98A12 (2.95:1 as a status dot on a card) */ --warning-text:#8F6100; --warning-subtle:rgba(201,138,18,.12); --warning-border:rgba(201,138,18,.40);
+  --critical:#D7343E; --critical-text:#B0232C; --critical-subtle:rgba(215,52,62,.10); --critical-border:rgba(215,52,62,.40);
+  --info:#2E6FE0; --info-text:#2358B8; --info-subtle:rgba(46,111,224,.10); --info-border:rgba(46,111,224,.35);
+  --unknown:#8A94A3; --unknown-text:#5C6675; --unknown-subtle:rgba(138,148,163,.14); --unknown-border:rgba(138,148,163,.45);
+  --paused:#6B7484; --paused-text:#4F5865; --paused-subtle:rgba(107,116,132,.10); --paused-border:rgba(107,116,132,.35);
+  --running:#0A8FCB; --running-text:#0A6F9D; --running-subtle:rgba(10,143,203,.10); --running-border:rgba(10,143,203,.35);
+  --queued:#7C5CD6; --queued-text:#5E3FB8; --queued-subtle:rgba(124,92,214,.10); --queued-border:rgba(124,92,214,.35);
+  --maintenance:#C4681F; --maintenance-text:#94500F; --maintenance-subtle:rgba(196,104,31,.10); --maintenance-border:rgba(196,104,31,.35);
+  --focus-ring:0 0 0 2px #FFFFFF,0 0 0 4px var(--accent);
+  --scrim:rgba(23,27,34,.45);
+  --grid-line:rgba(23,27,34,.05); --grid-line-strong:rgba(23,27,34,.10);
+  --highlight-inset:none;
+}

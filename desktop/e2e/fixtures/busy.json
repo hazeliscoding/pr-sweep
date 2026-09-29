@@ -1,0 +1,42 @@
+{
+  "profile": {
+    "org": "acme",
+    "authors": ["dana", "lee", "sam", "priya", "jo"],
+    "range": { "start": "-12d", "end": "+2d" },
+    "includeDrafts": true,
+    "staleDays": 5,
+    "sprints": { "pattern": "Sprint {n}", "first": { "number": 24, "start": "-12d" }, "lengthDays": 15 }
+  },
+  "open": [
+    { "repo": "api", "number": 482, "title": "Refresh OAuth tokens before they expire", "author": "dana", "ci": "failure", "createdAt": "-1d", "updatedAt": "-5h", "lastCommitAt": "-7h", "requestedReviewers": ["lee"], "comments": 4, "additions": 212, "deletions": 38 },
+    { "repo": "infra", "number": 94, "title": "Pool Redis connections per worker", "author": "sam", "bucket": "approved", "createdAt": "-6d", "updatedAt": "-3d", "approvedAt": "-3d", "mergeable": "conflicting", "reviewCount": 2, "comments": 6, "additions": 140, "deletions": 51 },
+    { "repo": "web", "number": 812, "title": "Show clear login error states", "author": "priya", "bucket": "changes-requested", "createdAt": "-5d", "updatedAt": "-2d", "lastCommitAt": "-3d", "changesRequestedAt": "-2d", "mergeable": "mergeable", "reviewCount": 1, "comments": 9, "additions": 96, "deletions": 20 },
+    { "repo": "web", "number": 799, "title": "Warn before the session times out", "author": "jo", "bucket": "changes-requested", "createdAt": "-7d", "updatedAt": "-2d", "lastCommitAt": "-2d", "changesRequestedAt": "-4d", "mergeable": "mergeable", "reviewCount": 2, "comments": 11, "additions": 58, "deletions": 12 },
+    { "repo": "api", "number": 491, "title": "Add OAuth endpoints for service accounts", "author": "lee", "bucket": "approved", "createdAt": "-4d", "updatedAt": "-30h", "approvedAt": "-36h", "mergeable": "mergeable", "reviewCount": 2, "comments": 3, "additions": 318, "deletions": 44 },
+    { "repo": "docs", "number": 201, "title": "Onboarding guide for new services", "author": "priya", "createdAt": "-5h", "updatedAt": "-5h", "requestCount": 0, "reviewCount": 0, "additions": 410, "deletions": 0 },
+    { "repo": "web", "number": 830, "title": "Dark mode tokens for charts", "author": "sam", "ci": "pending", "createdAt": "-3h", "updatedAt": "-40m", "requestedReviewers": ["priya"], "additions": 77, "deletions": 31 },
+    { "repo": "api", "number": 497, "title": "Return rate-limit headers on every response", "author": "jo", "createdAt": "-20h", "updatedAt": "-2h", "requestedReviewers": ["dana", "acme/platform"], "comments": 1, "additions": 64, "deletions": 9 },
+    { "repo": "mobile", "number": 41, "title": "Cache the feed for offline use", "author": "dana", "bucket": "approved", "createdAt": "-2d", "updatedAt": "-4h", "approvedAt": "-4h", "mergeable": "mergeable", "reviewCount": 1, "additions": 250, "deletions": 70 },
+    { "repo": "billing", "number": 57, "title": "Export invoices as PDF", "author": "lee", "createdAt": "-6d", "updatedAt": "-1d", "requestedReviewers": ["acme/payments"], "comments": 2, "additions": 180, "deletions": 15 },
+    { "repo": "mobile", "number": 33, "title": "Ask before enabling push notifications", "author": "sam", "createdAt": "-9d", "updatedAt": "-7d", "requestedReviewers": ["jo"], "additions": 45, "deletions": 8 },
+    { "repo": "api", "number": 455, "title": "Remove the legacy v1 routes", "author": "dana", "isDraft": true, "createdAt": "-12d", "updatedAt": "-8d", "additions": 20, "deletions": 1240 },
+    { "repo": "web", "number": 835, "title": "Settings page layout experiment", "author": "priya", "isDraft": true, "createdAt": "-1d", "updatedAt": "-1d", "additions": 130, "deletions": 60 },
+    { "repo": "infra", "number": 88, "title": "Upgrade the Terraform modules", "author": "jo", "ci": "failure", "createdAt": "-45d", "updatedAt": "-40d", "lastCommitAt": "-40d", "requestedReviewers": ["sam"], "comments": 5, "additions": 900, "deletions": 870 }
+  ],
+  "merged": [
+    { "repo": "api", "number": 470, "title": "Paginate the audit log endpoint", "author": "lee", "createdAt": "-11d", "mergedAt": "-9d", "additions": 120, "deletions": 18 },
+    { "repo": "web", "number": 790, "title": "Keyboard shortcuts for the review queue", "author": "priya", "createdAt": "-10d", "mergedAt": "-8d", "additions": 88, "deletions": 14 },
+    { "repo": "infra", "number": 90, "title": "Alert when the queue backs up", "author": "sam", "createdAt": "-9d", "mergedAt": "-7d", "additions": 42, "deletions": 3 },
+    { "repo": "billing", "number": 55, "title": "Retry failed card charges once", "author": "jo", "createdAt": "-8d", "mergedAt": "-6d", "additions": 77, "deletions": 21 },
+    { "repo": "api", "number": 476, "title": "Tighten CORS for the admin API", "author": "dana", "createdAt": "-7d", "mergedAt": "-5d", "additions": 16, "deletions": 9 },
+    { "repo": "mobile", "number": 38, "title": "Fix the crash on an empty inbox", "author": "sam", "createdAt": "-6d", "mergedAt": "-4d", "additions": 11, "deletions": 4 },
+    { "repo": "docs", "number": 198, "title": "Document the release checklist", "author": "priya", "createdAt": "-5d", "mergedAt": "-3d", "additions": 140, "deletions": 0 },
+    { "repo": "web", "number": 806, "title": "Lazy-load the settings bundle", "author": "jo", "createdAt": "-4d", "mergedAt": "-2d", "additions": 35, "deletions": 12 },
+    { "repo": "api", "number": 488, "title": "Log slow queries over 500 ms", "author": "lee", "createdAt": "-3d", "mergedAt": "-1d", "additions": 29, "deletions": 2 },
+    { "repo": "infra", "number": 92, "title": "Rotate the staging database password", "author": "dana", "createdAt": "-2d", "mergedAt": "-6h", "additions": 4, "deletions": 4 }
+  ],
+  "queue": [
+    { "repo": "api", "number": 482, "title": "Refresh OAuth tokens before they expire", "author": "dana", "ci": "failure", "createdAt": "-1d", "updatedAt": "-5h", "reviewRequestedAt": "-26h", "requestedReviewers": ["lee", "you"], "comments": 4, "additions": 212, "deletions": 38 },
+    { "repo": "billing", "number": 60, "title": "Handle refund webhooks", "author": "kai", "createdAt": "-4h", "updatedAt": "-3h", "reviewRequestedAt": "-3h", "requestedReviewers": ["you"], "additions": 66, "deletions": 5 }
+  ]
+}

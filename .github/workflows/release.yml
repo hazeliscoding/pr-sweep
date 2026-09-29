@@ -46,7 +46,9 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          npm ci
+          # --ignore-scripts: the root postinstall would npm install the folders below a
+          # second time, without their lockfiles' exact versions.
+          npm ci --ignore-scripts
           (cd desktop && npm ci)
           (cd desktop/renderer && npm ci)
       - name: Build

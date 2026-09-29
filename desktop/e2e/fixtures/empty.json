@@ -1,0 +1,9 @@
+{
+  "profile": {
+    "org": "acme",
+    "authors": ["dana", "lee", "sam", "priya", "jo"],
+    "range": { "start": "-1d", "end": null },
+    "includeDrafts": false,
+    "staleDays": 5
+  }
+}

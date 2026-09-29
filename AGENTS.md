@@ -68,6 +68,9 @@ organization. It ships for Windows and Linux.
   "needs attention". `prs:fetch` runs it over every open row after every sweep, cached rows
   included. The Sweep section, the tray line and the sprint summary read its output; the
   renderer never decides on its own whether a PR needs attention.
+- Sprints are computed, never stored: a profile keeps a schedule (`sprints`) and a `period`
+  (`'current'`, a pinned `{ sprint }` or `'custom'`), and `core/sprints.ts` resolves them against
+  today through `period:resolve`. The renderer never does sprint date math itself.
 - Workflow health, not human performance: no per-person counts, leaderboards or review stats.
 - No AI features before 1.0.
 - Windows and Linux only. macOS is not planned.
@@ -77,29 +80,65 @@ organization. It ships for Windows and Linux.
 - The assets are in `docs/brand/`. `mark.svg` is the source of the app icon. `lockup.svg` is for
   light backgrounds and `lockup-dark.svg` for dark ones.
 - The mark: a gold (`#d1a249`) main branch and a blue (`#98c6ff`) feature branch merging, on a
-  navy (`#001740`) tile. These are the app's light primary, gold and dark accent.
+  navy (`#001740`) tile. These colors belong to the icons and the lockup; inside the app, the
+  accent is Quorum's teal.
 - The wordmark is Manrope ExtraBold (800) with -0.02em tracking, converted to vector paths. It is
   navy `#001740` on light and white on dark. Use the SVGs; don't re-typeset it with a web font.
 - `desktop/build/icon.png` (512px) is rendered from `docs/brand/mark.svg`. `tray.png` and
   `tray-alert.png` (256px) are the same mark, and the alert one adds a red badge. Re-render the
   PNGs whenever the mark changes.
 
+## Design
+
+- The UI is the **Quorum Design System**. Its tokens are copied into
+  `desktop/renderer/src/styles/quorum/`, each file naming its source. The only edits are marked
+  `/* AA */`. Don't edit those files otherwise: if Quorum changes, copy the file again and
+  reapply the marked edits.
+- App styles live in `styles/app/` and use tokens only. `npm run check` fails on a raw color
+  outside `styles/quorum/`, a font not set through a token, or any remote URL.
+- Every text color on every surface the UI uses is a pair in
+  `renderer/scripts/check-contrast.mjs`, which must reach 4.5:1 in both themes (3:1 for focus
+  rings and status dots). A text color on a new surface needs a new pair. Don't fade rows with
+  opacity; tag them.
+- Status is never color alone: a dot or a colored word sits next to words (Pass, Fail, a
+  reason), and pressed chips show a check.
+- Fonts (Manrope, IBM Plex Mono, from Fontsource) and icons (Lucide, copied into
+  `app/ui/icons.ts`) are bundled, with their licenses in `renderer/licenses/`. The app loads
+  nothing from a CDN.
+- Mono is for evidence: PR refs, counts, ages, sizes, dates, logins and error details. Status
+  tables are `data-density="dense"` (26px rows); the Sweep and Settings tables are `compact`.
+- Voice, release notes included: sentence case, plain words, no emoji, no exclamation marks. A
+  headline says what happened ("Couldn't refresh"), with the evidence under it in mono.
+- Quorum names both a color and a font `--text-body`, and the font wins. Color body text with
+  `--text-1`.
+- Review a UI change with the fixture screenshots, in both themes.
+
 ## Commands
 
 Run these from the repo root unless noted.
 
-- `npm install && npm run setup` installs root, desktop and renderer dependencies.
+- `npm install` installs root, desktop and renderer dependencies: its postinstall runs
+  `npm run setup`. Run it again after pulling, since `npm run dev` installs nothing.
 - `npm run dev` runs the Angular dev server on :4301 and Electron with live reload.
 - `npm run build` runs the renderer AOT build and the main-process `tsc`. Together they are the
   typecheck.
 - `npm test` runs the Node tests in `desktop/src/main/core/*.test.mjs`. They import the compiled
   `desktop/dist/`, so build first.
+- `npm run check` runs the design checks (contrast in both themes, then assets). CI runs it.
 - `npm run package:win` builds the installer and portable exe. `npm run package:linux` builds
   the AppImage and has to run on Linux. Local packages are unsigned unless the Azure env vars
   are set.
-- From `desktop/` after a build, `GH_TOKEN=$(gh auth token) node e2e/screenshot.mjs` writes
-  screenshots to `desktop/e2e/shots/`. `PRSWEEP_DEMO=1` points it at a public org for README
-  images.
+- From `desktop/` after `npm run build`, `node e2e/screenshot.mjs --fixtures [busy,calm,…]`
+  shoots every fixture state in both themes to `desktop/e2e/shots/`, with no token or network.
+  `GH_TOKEN=$(gh auth token) PRSWEEP_ORG=<org> node e2e/screenshot.mjs` shoots the live board.
+  `node e2e/screenshot.mjs --readme` renders the README images (`docs/screenshots/`) from `busy`.
+  Every run uses a throwaway `--user-data-dir` and aborts unless the app really uses it; never
+  point a UI script at the real data folder (Chromium ignores `%APPDATA%` overrides).
+- `PRSWEEP_FIXTURE=<name>` makes an unpackaged build serve canned sweeps from
+  `desktop/e2e/fixtures/<name>.json` instead of GitHub, still judged by the real attention
+  engine. Fixture times are relative (`"-3d"`, `"+2d"`); rows list only what matters and the
+  loader (`core/fixture.ts`) fills the rest. `busy` must keep triggering all nine attention
+  reasons (its test checks).
 - `PRSWEEP_DEBUG=1` makes the main process log GraphQL variables and response bodies, plus one
   `[sweep]` line per sweep with its mode, duration, requests and retries.
 - From `desktop/` after `npm run build:main`,
@@ -121,11 +160,12 @@ Run these from the repo root unless noted.
   version bump. The release workflow publishes that file as the release body and fails before
   building if it's missing. Write them for a reader skimming on a phone:
   - Open with one bold **TL;DR:** line saying what changed and why it matters.
-  - Then short sections, in this order, only when they have something: `## ✨ New`,
-    `## ⚡ Faster`, `## 🐛 Fixed`, `## 👀 Heads up` (anything a user might trip over), and
-    `## ⬆️ Getting it`.
+  - Then short sections, in this order, only when they have something: `## New`,
+    `## Faster`, `## Fixed`, `## Heads up` (anything a user might trip over), and
+    `## Getting it`.
   - One line per bullet, starting with a **bold** phrase. Plain words, user-visible effects,
-    real numbers when there are some. No commit hashes, no internals, no paragraphs.
+    real numbers when there are some. No commit hashes, no internals, no paragraphs, and no
+    emoji: Quorum's voice applies to release notes too.
 - Pushing a `v*` tag runs `.github/workflows/release.yml`. It builds the signed Windows installer,
   the portable exe and the Linux AppImage, then publishes one GitHub release. The `latest*.yml`
   files and blockmaps must ship with every release, because the auto-updater reads them.
