@@ -179,6 +179,13 @@ export interface SprintSummary {
   medianMergeMs: number | null;
 }
 
+/** What Copy standup put on the clipboard, for its confirmation. */
+export interface StandupCounts {
+  merged: number;
+  blocked: number;
+  attention: number;
+  review: number;
+}
 
 export interface PrRow {
   repo: string;
@@ -277,6 +284,8 @@ export interface PrSweepApi {
   resolvePeriod(): Promise<ResolvedPeriod>;
   /** A schedule's sprints around today, for previewing edits before (and after) they're saved. */
   previewSprints(schedule: SprintSchedule): Promise<SprintPreview>;
+  /** Build the standup from the sweep on screen and put it on the clipboard as rich text and Markdown. */
+  copyStandup(result: SweepResult): Promise<StandupCounts>;
   /**
    * Push the latest sweep's tray-relevant slices: the review queue (counts +
    * review-request toasts), the viewer's own open PRs (approval / changes-

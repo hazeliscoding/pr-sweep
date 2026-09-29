@@ -138,6 +138,13 @@ export interface SprintSummary {
   medianMergeMs: number | null;
 }
 
+/** What Copy standup put on the clipboard, for its confirmation. */
+export interface StandupCounts {
+  merged: number;
+  blocked: number;
+  attention: number;
+  review: number;
+}
 
 export interface PrRow {
   repo: string;
@@ -212,6 +219,7 @@ export interface PrSweepApi {
   latestSweep(): Promise<SweepResult | null>;
   resolvePeriod(): Promise<ResolvedPeriod>;
   previewSprints(schedule: SprintSchedule): Promise<SprintPreview>;
+  copyStandup(result: SweepResult): Promise<StandupCounts>;
   syncTray(sync: { queue: PrRow[]; mine: PrRow[]; needsReviewCount: number; attentionCount: number }): Promise<void>;
   openExternal(url: string): Promise<void>;
   onUpdateState(cb: (state: UpdateState | null) => void): void;

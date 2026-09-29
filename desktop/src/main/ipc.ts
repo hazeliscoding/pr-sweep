@@ -6,12 +6,13 @@
  * Handlers are thin: unwrap args, delegate to a service. Business logic stays
  * in core/ where it's testable without Electron.
  */
-import { dialog, ipcMain, shell } from 'electron';
+import { clipboard, dialog, ipcMain, shell } from 'electron';
 import { readFileSync, writeFileSync } from 'fs';
 import { annotate } from './core/attention';
 import { activeProfile, ConfigService, normalizeSprints } from './core/config.service';
 import { Fixture } from './core/fixture';
 import { localDate, resolvePeriod, sprintsAround } from './core/sprints';
+import { buildStandup } from './core/standup';
 import { summarize } from './core/summary';
 import { GithubService, SweepStats } from './core/github.service';
 import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
@@ -81,6 +82,14 @@ export function registerIpc(services: Services): void {
   });
   // Fixture mode starts empty, so the first sweep's loading state is visible.
   ipcMain.handle('period:resolve', () => resolvePeriod(activeProfile(services.config.get()), localDate()));
+  // The sweep on screen, as the renderer shows it; the standup ignores its filters.
+  ipcMain.handle('standup:copy', (_e, result: SweepResult) => {
+    const today = localDate();
+    const period = resolvePeriod(activeProfile(services.config.get()), today);
+    const standup = buildStandup(result, { now: Date.now(), today, period });
+    clipboard.write({ text: standup.text, html: standup.html });
+    return standup.counts;
+  });
   // The schedule comes from the editor unsaved, so it gets the same check a saved one does.
   ipcMain.handle('sprints:preview', (_e, schedule: unknown) => {
     const s = normalizeSprints(schedule);
