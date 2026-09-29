@@ -121,11 +121,12 @@ Run these from the repo root unless noted.
   version bump. The release workflow publishes that file as the release body and fails before
   building if it's missing. Write them for a reader skimming on a phone:
   - Open with one bold **TL;DR:** line saying what changed and why it matters.
-  - Then short sections, in this order, only when they have something: `## ✨ New`,
-    `## ⚡ Faster`, `## 🐛 Fixed`, `## 👀 Heads up` (anything a user might trip over), and
-    `## ⬆️ Getting it`.
+  - Then short sections, in this order, only when they have something: `## New`,
+    `## Faster`, `## Fixed`, `## Heads up` (anything a user might trip over), and
+    `## Getting it`.
   - One line per bullet, starting with a **bold** phrase. Plain words, user-visible effects,
-    real numbers when there are some. No commit hashes, no internals, no paragraphs.
+    real numbers when there are some. No commit hashes, no internals, no paragraphs, and no
+    emoji: Quorum's voice applies to release notes too.
 - Pushing a `v*` tag runs `.github/workflows/release.yml`. It builds the signed Windows installer,
   the portable exe and the Linux AppImage, then publishes one GitHub release. The `latest*.yml`
   files and blockmaps must ship with every release, because the auto-updater reads them.
