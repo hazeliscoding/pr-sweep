@@ -23,3 +23,6 @@ jobs:
         run: npm run build
       - name: Test
         run: npm test
+      # WCAG AA on the Quorum tokens, and no remote assets or stray fonts in the renderer.
+      - name: Design checks
+        run: npm run check

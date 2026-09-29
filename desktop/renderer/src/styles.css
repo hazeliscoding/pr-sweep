@@ -1,3 +1,15 @@
+/* Quorum Design System tokens (see styles/quorum/). Imported first: until the v0.12 restyle
+   replaces the rules below, the old variables that share a name (--space-7, --space-8,
+   --font-sans) still win, so the current look holds screen by screen. */
+@import './styles/quorum/fonts.css';
+@import './styles/quorum/colors.css';
+@import './styles/quorum/typography.css';
+@import './styles/quorum/spacing.css';
+@import './styles/quorum/shape.css';
+@import './styles/quorum/motion.css';
+@import './styles/quorum/layers.css';
+@import './styles/quorum/base.css';
+
 /* ===== pr-sweep design system =====
    Utilitarian catalog-density look (think industrial-supply websites): Arial,
    zero radius, no shadows, dense bordered tables with row striping. Navy/gold
@@ -358,7 +370,7 @@ tr.snoozed td:not(.next), tr.quiet td:not(.next) { opacity: 0.55; }
 .modal .alt a { color: var(--color-link); }
 .device-code { text-align: center; margin-top: var(--space-5); }
 .device-code .code {
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: var(--font-mono);
   font-size: var(--fs-h1);
   font-weight: var(--fw-bold);
   letter-spacing: 4px;

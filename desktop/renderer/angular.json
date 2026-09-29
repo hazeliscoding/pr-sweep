@@ -34,7 +34,14 @@
             "styles": [
               "src/styles.css"
             ],
-            "scripts": []
+            "scripts": [],
+            "assets": [
+              {
+                "glob": "*.txt",
+                "input": "licenses",
+                "output": "licenses"
+              }
+            ]
           },
           "configurations": {
             "production": {

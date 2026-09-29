@@ -1,0 +1,11 @@
+/* Quorum Design System: tokens/spacing.css (claude.ai/design, "Quorum Design System"). Copied as-is.
+   8px foundation with 2/4px increments. Density modes scale row/cell metrics, not the base scale. */
+:root{
+  --space-0:0; --space-1:2px; --space-2:4px; --space-3:6px; --space-4:8px; --space-5:12px; --space-6:16px; --space-7:20px; --space-8:24px; --space-9:32px; --space-10:40px; --space-11:48px; --space-12:64px;
+  /* Density: defaults = compact */
+  --density-row:32px; --density-cell-y:6px; --density-cell-x:12px; --density-control:28px; --density-gap:12px; --density-panel-pad:16px; --density-font:13px; --density-font-data:12px;
+  --sidebar-width:216px; --sidebar-collapsed:48px; --topbar-height:44px; --inspector-width:380px;
+}
+[data-density="comfortable"]{ --density-row:40px; --density-cell-y:10px; --density-cell-x:16px; --density-control:32px; --density-gap:16px; --density-panel-pad:20px; --density-font:14px; --density-font-data:13px; }
+[data-density="compact"]{ --density-row:32px; --density-cell-y:6px; --density-cell-x:12px; --density-control:28px; --density-gap:12px; --density-panel-pad:16px; --density-font:13px; --density-font-data:12px; }
+[data-density="dense"]{ --density-row:26px; --density-cell-y:3px; --density-cell-x:8px; --density-control:24px; --density-gap:8px; --density-panel-pad:12px; --density-font:12px; --density-font-data:11.5px; }

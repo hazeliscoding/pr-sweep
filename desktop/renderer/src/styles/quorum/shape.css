@@ -1,0 +1,21 @@
+/* Quorum Design System: tokens/shape.css (claude.ai/design, "Quorum Design System"). Copied as-is.
+   Radius & elevation. Radius stays small: this is an instrument, not a toy. */
+:root{
+  --radius-1:2px;  /* dense technical elements: log chips, sparkline bars, kbd */
+  --radius-2:4px;  /* inputs, controls, buttons */
+  --radius-3:6px;  /* standard components: cards, popovers */
+  --radius-4:8px;  /* larger surfaces: panels, modals */
+  --radius-5:12px; /* rare prominent containers */
+  --radius-round:999px; /* status dots only */
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);
+  --shadow-2:0 2px 8px rgba(0,0,0,.40),0 0 0 1px var(--border-1);
+  --shadow-3:0 8px 24px rgba(0,0,0,.50),0 0 0 1px var(--border-2);
+  --shadow-4:0 24px 64px rgba(0,0,0,.60),0 0 0 1px var(--border-2);
+  --border-width:1px;
+}
+[data-theme="light"]{
+  --shadow-1:0 1px 2px rgba(23,27,34,.06);
+  --shadow-2:0 2px 8px rgba(23,27,34,.08),0 0 0 1px var(--border-1);
+  --shadow-3:0 8px 24px rgba(23,27,34,.12),0 0 0 1px var(--border-2);
+  --shadow-4:0 24px 64px rgba(23,27,34,.18),0 0 0 1px var(--border-2);
+}

@@ -1,0 +1,15 @@
+/* Quorum Design System: tokens/base.css (claude.ai/design, "Quorum Design System"). Copied as-is.
+   Minimal base: body reset, link colors, scrollbars, selection, focus. */
+html,body{margin:0;padding:0}
+body{background:var(--surface-app);color:var(--text-body);font:var(--text-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+*,*::before,*::after{box-sizing:border-box}
+a{color:var(--text-link);text-decoration:none}
+a:hover{color:var(--accent-hover);text-decoration:underline;text-underline-offset:2px}
+code,kbd,pre,samp{font-family:var(--font-mono)}
+::selection{background:var(--accent-subtle);color:var(--text-1)}
+:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+*{scrollbar-width:thin;scrollbar-color:var(--border-3) transparent}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-thumb{background:var(--border-3);border-radius:4px}
+*::-webkit-scrollbar-track{background:transparent}
+.q-grid-paper{background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:24px 24px}

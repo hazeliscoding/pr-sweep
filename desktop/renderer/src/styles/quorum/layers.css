@@ -1,0 +1,2 @@
+/* Quorum Design System: tokens/layers.css (claude.ai/design, "Quorum Design System"). Copied as-is, minus the design tool's @kind metadata comments. */
+:root{ --z-base:0; --z-sticky:50; --z-dropdown:100; --z-drawer:200; --z-modal:300; --z-palette:350; --z-toast:400; --z-tooltip:500; }

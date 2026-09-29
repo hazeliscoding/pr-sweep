@@ -1,0 +1,22 @@
+/* Quorum Design System: tokens/motion.css (claude.ai/design, "Quorum Design System"). Copied as-is, minus the design tool's @kind metadata comments.
+   Motion presets. Monitoring software should feel immediate. */
+:root{
+  --dur-instant:80ms; --dur-fast:120ms; --dur-standard:180ms; --dur-panel:240ms; --dur-complex:320ms;
+  --ease-entrance:cubic-bezier(.2,.8,.2,1);
+  --ease-exit:cubic-bezier(.4,0,1,1);
+  --ease-reposition:cubic-bezier(.2,0,0,1);
+  --ease-data:cubic-bezier(.3,.7,.4,1);
+  --ease-standard:cubic-bezier(.25,.1,.25,1);
+  --pulse-duration:2000ms;
+}
+@media (prefers-reduced-motion:reduce){
+  :root{ --dur-instant:0ms; --dur-fast:0ms; --dur-standard:0ms; --dur-panel:0ms; --dur-complex:0ms; --pulse-duration:0ms; }
+}
+@keyframes q-pulse{0%,100%{box-shadow:0 0 0 0 currentColor;opacity:1}70%{box-shadow:0 0 0 5px transparent;opacity:.85}}
+@keyframes q-live{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes q-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes q-sweep{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+@keyframes q-fade-in{from{opacity:0}to{opacity:1}}
+@keyframes q-slide-up{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes q-slide-in-right{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+@keyframes q-log-arrive{from{opacity:0;transform:translateY(-6px);background:var(--accent-subtle)}to{opacity:1;transform:none;background:transparent}}
