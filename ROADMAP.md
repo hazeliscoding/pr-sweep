@@ -309,8 +309,10 @@ on the `release/v0.12` branch.
 - [x] Board: health strip, filter bar, tables with density, CI status badges, Sweep rows, empty
       states and skeleton rows. *CI reads as a word (Pass, Fail, Running) next to its dot.
       Snoozed and quiet rows get a tag instead of being faded, so they keep AA contrast.*
-- [ ] Settings, with a Sprints section, and onboarding. The old stylesheet is deleted and the
-      no-raw-colors rule switches on.
+- [x] Settings, with a Sprints section, and onboarding. The old stylesheet is deleted and the
+      no-raw-colors rule switches on. *The Sprints card previews the sprints around today through a
+      `sprints:preview` call, so the renderer still does no sprint date math. Screenshots add
+      `settings-setup` and `onboarding-token`.*
 - [ ] Voice pass over every string, a Design section in `AGENTS.md`, and README screenshots from
       the `busy` fixture.
 - [ ] Review: before and after screenshots of every state in both themes, a keyboard pass, the
