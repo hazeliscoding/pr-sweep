@@ -412,7 +412,10 @@ Built on the `release/v0.13` branch.
   "Copied" confirmation with the counts. Shown only when the period includes today. *It sits at
   the end of the health strip. The screenshot script stubs the clipboard, so a run never
   overwrites yours.*
-- [ ] Fixture screenshots in both themes, README, a keyboard pass and the renderer bundle size.
+- [x] Fixture screenshots in both themes, README, a keyboard pass and the renderer bundle size.
+  *30 screenshots (a new `busy-standup` state). Copy standup comes right after the top bar in
+  the Tab order, and the v0.11 snooze, quiet and tray checks still pass. The renderer is
+  988.5 KB, 1.6 KB more than v0.12.*
 - [ ] `chore(release): v0.13.0` with its notes, then mark the pull request ready, merge it, and
   tag `v0.13.0`.
 
