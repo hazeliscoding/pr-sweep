@@ -399,15 +399,19 @@ Built on the `release/v0.13` branch.
   first link (its × removes the card before sending). Discord takes the Markdown, and stacked a
   preview card per link until links became `<url>`. Slack wasn't tested: no workspace to hand.
   To fix in the build: the title needs a gap before the first group in Teams.*
-- [ ] `core/summary.ts` with tests: days left, open and not yet approved, needs attention,
+- [x] `core/summary.ts` with tests: days left, open and not yet approved, needs attention,
   merged, merged since the last working day, and median time to merge. It replaces `sprintRisk`
-  in the sweep result (schema 6).
-- [ ] Health strip: the sprint's story, team-wide, with a note under each number. The Sweep
-  header loses its sprint line.
-- [ ] `core/standup.ts` with tests: the groups, the "since Friday" wording, and titles escaped
+  in the sweep result (schema 6). *The Blocked / Needs attention / In review rule is
+  `standupGroup` in the attention engine, so the strip and the standup can't disagree.*
+- [x] Health strip: the sprint's story, team-wide, with a note under each number. The Sweep
+  header loses its sprint line. *Checked on the busy fixture: an author chip, search and a
+  snooze each leave every strip number as it was.*
+- [x] `core/standup.ts` with tests: the groups, the "since Friday" wording, and titles escaped
   for both Markdown and HTML.
-- [ ] Copy standup: the button, both formats written to the clipboard by the main process, and a
-  "Copied" confirmation with the counts. Shown only when the period includes today.
+- [x] Copy standup: the button, both formats written to the clipboard by the main process, and a
+  "Copied" confirmation with the counts. Shown only when the period includes today. *It sits at
+  the end of the health strip. The screenshot script stubs the clipboard, so a run never
+  overwrites yours.*
 - [ ] Fixture screenshots in both themes, README, a keyboard pass and the renderer bundle size.
 - [ ] `chore(release): v0.13.0` with its notes, then mark the pull request ready, merge it, and
   tag `v0.13.0`.
