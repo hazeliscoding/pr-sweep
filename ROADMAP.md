@@ -313,8 +313,10 @@ on the `release/v0.12` branch.
       no-raw-colors rule switches on. *The Sprints card previews the sprints around today through a
       `sprints:preview` call, so the renderer still does no sprint date math. Screenshots add
       `settings-setup` and `onboarding-token`.*
-- [ ] Voice pass over every string, a Design section in `AGENTS.md`, and README screenshots from
-      the `busy` fixture.
+- [x] Voice pass over every string, a Design section in `AGENTS.md`, and README screenshots from
+      the `busy` fixture. *The screens were written in Quorum's voice as they were restyled; the
+      pass fixed the main process's setup errors and one next step ("Mark ready or close").
+      `screenshot.mjs --readme` renders the README images at 2x.*
 - [ ] Review: before and after screenshots of every state in both themes, a keyboard pass, the
       v0.11 snooze, quiet and tray checks rerun on fixtures, and the renderer bundle size
       recorded.
