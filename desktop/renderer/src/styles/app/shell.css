@@ -1,12 +1,17 @@
 /* The app shell: Quorum's top bar (tabs, freshness, period, refresh, theme),
    the loading bar under it, and the scrolling main pane. */
 
+/* Quorum's base.css colors the body with --text-body, but typography.css
+   defines --text-body too (as a font), and the later one wins, so the color
+   never applies. Name the color token directly. */
+body { color: var(--text-1); }
+
 .app {
   display: flex;
   flex-direction: column;
   height: 100vh;
   background: var(--surface-app);
-  color: var(--text-body);
+  color: var(--text-1);
   font: var(--text-body);
 }
 
