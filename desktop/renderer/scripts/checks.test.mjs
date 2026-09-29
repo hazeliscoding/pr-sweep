@@ -28,9 +28,9 @@ const src = fileURLToPath(new URL('../src', import.meta.url));
   assert.ok(!failures.some((f) => f.startsWith('dark:')), 'dark untouched');
 }
 
-// --- assets: the real sources pass (raw colors are checked separately, once the old styles are gone) ---
+// --- assets: the real sources pass ---
 {
-  const failures = checkAssets(src, { colors: false });
+  const failures = checkAssets(src);
   assert.deepEqual(failures, [], failures.join('\n'));
 }
 
@@ -41,18 +41,17 @@ const src = fileURLToPath(new URL('../src', import.meta.url));
   mkdirSync(join(dir, 'styles', 'quorum'), { recursive: true });
   writeFileSync(join(dir, 'app', 'ok.ts'), `const url = 'https://github.com/settings/tokens';\nconst ns = 'http://www.w3.org/2000/svg';\n`);
   writeFileSync(join(dir, 'styles', 'quorum', 'tokens.css'), `:root{ --x:#FFFFFF; --font-sans:"Manrope",sans-serif; }\n`);
-  assert.deepEqual(checkAssets(dir, { colors: true }), [], 'GitHub links, the SVG namespace and the token files are fine');
+  assert.deepEqual(checkAssets(dir), [], 'GitHub links, the SVG namespace and the token files are fine');
 
   writeFileSync(join(dir, 'app', 'cdn.css'), `@import url('https://fonts.googleapis.com/css2?family=Inter');\n`);
   writeFileSync(join(dir, 'app', 'font.css'), `.x { font-family: Arial, sans-serif; }\n`);
   writeFileSync(join(dir, 'app', 'remote.ts'), `const icon = 'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js';\n`);
   writeFileSync(join(dir, 'app', 'hex.css'), `.y { color: #ff0000; }\n`);
-  const found = checkAssets(dir, { colors: true }).join('\n');
+  const found = checkAssets(dir).join('\n');
   assert.match(found, /cdn\.css:1: remote URL/);
   assert.match(found, /font\.css:1: font/);
   assert.match(found, /remote\.ts:1: remote URL/);
   assert.match(found, /hex\.css:1: raw color/);
-  assert.doesNotMatch(checkAssets(dir, { colors: false }).join('\n'), /raw color/, 'the colors rule is opt-in until v0.12 step 7');
 }
 
 console.log('checks: contrast and assets pass on the real sources and catch planted violations');

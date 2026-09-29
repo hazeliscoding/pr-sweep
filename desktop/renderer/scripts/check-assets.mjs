@@ -4,9 +4,10 @@
  *    opens in the browser (and the SVG namespace), so it never loads fonts,
  *    icons or scripts from a CDN: the "only GitHub" promise;
  *  - fonts only through the Quorum font tokens (Manrope, IBM Plex Mono);
- *  - with --colors, no raw colors outside the token files (styles/quorum/).
+ *  - no raw colors outside the token files (styles/quorum/), so both themes
+ *    and the contrast check cover every color on screen.
  *
- * Run: node renderer/scripts/check-assets.mjs [--colors] [dir] (from desktop/)
+ * Run: node renderer/scripts/check-assets.mjs [dir] (from desktop/)
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -24,7 +25,7 @@ function files(dir) {
 }
 
 /** "app/x.css:3: remote URL https://…" for every violation under `dir`; [] when clean. */
-export function checkAssets(dir, { colors }) {
+export function checkAssets(dir) {
   const failures = [];
   for (const path of files(dir)) {
     const rel = relative(dir, path);
@@ -41,7 +42,7 @@ export function checkAssets(dir, { colors }) {
         for (const m of line.matchAll(/\bfont(?:-family)?\s*:\s*([^;}]+)/g)) {
           if (!/var\(--(font|text)-|^\s*inherit/.test(m[1])) failures.push(`${at}: font "${m[1].trim()}" — use var(--font-sans), var(--font-mono) or a --text-* token`);
         }
-        if (colors && css) {
+        if (css) {
           for (const [c] of line.matchAll(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\([^)]*\)/g)) {
             failures.push(`${at}: raw color ${c} — use a Quorum color token`);
           }
@@ -52,10 +53,9 @@ export function checkAssets(dir, { colors }) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const args = process.argv.slice(2);
-  const dir = args.find((a) => !a.startsWith('--')) ?? fileURLToPath(new URL('../src', import.meta.url));
-  const failures = checkAssets(dir, { colors: args.includes('--colors') });
+  const dir = process.argv[2] ?? fileURLToPath(new URL('../src', import.meta.url));
+  const failures = checkAssets(dir);
   for (const f of failures) console.error(f);
   if (failures.length) process.exit(1);
-  console.log(`assets: no remote URLs or stray fonts${args.includes('--colors') ? ', no raw colors' : ''}`);
+  console.log('assets: no remote URLs, stray fonts or raw colors');
 }
