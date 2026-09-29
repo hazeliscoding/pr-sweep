@@ -166,6 +166,10 @@ change requests included). Merged since the last working day comes first. Drafts
 the formatted version, with PR refs as links; plain-text places get the Markdown. Slack's
 message box doesn't read Markdown links, so Markdown alone wouldn't paste cleanly there. A paste
 test in real Slack and Teams comes before anything is built on the format.
+- **Markdown links are written `[ref](<url>)`.** Discord pastes the Markdown version, and the
+angle brackets stop it adding a preview card per link; other Markdown readers see an ordinary
+link. The formatted version writes every non-ASCII character as an HTML entity, so no app can
+misread the clipboard's encoding.
 - **The last working day is the previous weekday**, so a Monday standup covers since Friday.
 "Merged since" only covers what the board already fetched: on a sprint's first day it says
 nothing has merged yet this sprint, rather than paying for another search.
@@ -389,8 +393,12 @@ Theme: the board opens with how the sprint is going, and turns that into a stand
 Built on the `release/v0.13` branch.
 
 - [x] Roadmap, `AGENTS.md` and a draft pull request for the milestone.
-- [ ] Paste test: a throwaway standup in rich text and Markdown, pasted into real Slack and
-  Teams, before anything is built on the format.
+- [x] Paste test: a throwaway standup in rich text and Markdown, pasted into real Slack and
+  Teams, before anything is built on the format. *Teams keeps the bold headings, bullet lists
+  and PR links, shows a title's Markdown and HTML characters as typed, and previews only the
+  first link (its × removes the card before sending). Discord takes the Markdown, and stacked a
+  preview card per link until links became `<url>`. Slack wasn't tested: no workspace to hand.
+  To fix in the build: the title needs a gap before the first group in Teams.*
 - [ ] `core/summary.ts` with tests: days left, open and not yet approved, needs attention,
   merged, merged since the last working day, and median time to merge. It replaces `sprintRisk`
   in the sweep result (schema 6).
@@ -404,8 +412,8 @@ Built on the `release/v0.13` branch.
 - [ ] `chore(release): v0.13.0` with its notes, then mark the pull request ready, merge it, and
   tag `v0.13.0`.
 
-**Done when:** you can run a standup from the app and paste it into Slack or Teams without
-editing it, the strip's numbers agree with the standup's, and no number in the strip changes
+**Done when:** you can run a standup from the app and paste it into Teams or Discord without
+editing it (Slack, untested, gets the same formatted version as Teams), the strip's numbers agree with the standup's, and no number in the strip changes
 when you pick an author chip.
 
 ## v0.14: Related work
