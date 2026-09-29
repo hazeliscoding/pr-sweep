@@ -13,8 +13,11 @@ const MAX_SPRINTS = 2000;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // yyyy-mm-dd arithmetic through UTC midnights, so DST never shifts a day.
-const addDays = (date: string, days: number): string =>
+export const addDays = (date: string, days: number): string =>
   new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY).toISOString().slice(0, 10);
+/** Whole days from one date to another: 0 for the same day, negative when `to` came first. */
+export const daysBetween = (from: string, to: string): number =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 const lengthOf = (s: SprintSchedule, n: number): number => s.lengths[n] ?? s.lengthDays;
 const nameOf = (s: SprintSchedule, n: number): string => s.names[n] ?? s.pattern.replace('{n}', String(n));
 
@@ -95,6 +98,19 @@ export function resolvePeriod(profile: Profile, today: string): ResolvedPeriod {
   };
 }
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** "Monday" for a yyyy-mm-dd date. */
+export function weekday(date: string): string {
+  return WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()];
+}
+
+/** "Sep 17", with the year when it isn't this one. */
+export function dayLabel(date: string, thisYear: number): string {
+  const a = parts(date);
+  return `${a.m} ${a.d}${a.y !== thisYear ? `, ${a.y}` : ''}`;
+}
+
 function parts(date: string): { y: number; m: string; d: number } {
   const [y, m, d] = date.split('-').map(Number);
   return { y, m: MONTHS[m - 1], d };
@@ -109,8 +125,7 @@ function span(start: string, end: string, thisYear: number): string {
   return a.m === b.m ? `${a.m} ${a.d}–${b.d}${year}` : `${a.m} ${a.d} – ${b.m} ${b.d}${year}`;
 }
 
-function rangeLabel(range: DateRange, thisYear: number): string {
-  if (range.end) return span(range.start, range.end, thisYear);
-  const a = parts(range.start);
-  return `Since ${a.m} ${a.d}${a.y !== thisYear ? `, ${a.y}` : ''}`;
+/** "Sep 14–27", or "Since Sep 17" for an open-ended range. */
+export function rangeLabel(range: DateRange, thisYear: number): string {
+  return range.end ? span(range.start, range.end, thisYear) : `Since ${dayLabel(range.start, thisYear)}`;
 }

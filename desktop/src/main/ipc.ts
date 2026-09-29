@@ -12,6 +12,7 @@ import { annotate } from './core/attention';
 import { activeProfile, ConfigService, normalizeSprints } from './core/config.service';
 import { Fixture } from './core/fixture';
 import { localDate, resolvePeriod, sprintsAround } from './core/sprints';
+import { summarize } from './core/summary';
 import { GithubService, SweepStats } from './core/github.service';
 import { DEFAULT_OAUTH_CLIENT_ID } from './core/oauth.constants';
 import { pollForToken, requestDeviceCode } from './core/oauth.service';
@@ -69,12 +70,9 @@ export function registerIpc(services: Services): void {
       const swept = services.fixture
         ? await fixtureSweep(services.fixture, range)
         : await services.github.sweep(config, range, base);
-      // Every sweep re-judges every open row, cached ones included.
-      const result = annotate(swept, {
-        now: Date.now(),
-        staleDays: activeProfile(config).staleDays,
-        rangeEnd: range.end,
-      });
+      // Every sweep re-judges every open row, cached ones included, then sums up the sprint.
+      const judged = annotate(swept, { now: Date.now(), staleDays: activeProfile(config).staleDays });
+      const result = { ...judged, summary: summarize(judged, { today: localDate() }) };
       if (!services.fixture) services.snapshots.set(result);
       return result;
     } finally {
@@ -149,7 +147,7 @@ async function fixtureSweep(fixture: Fixture, range: DateRange): Promise<SweepRe
     org: fixture.profile.org,
     range,
     ...fixture.sweep,
-    sprintRisk: null,
+    summary: null,
   };
 }
 

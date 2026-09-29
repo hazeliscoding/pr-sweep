@@ -93,7 +93,8 @@ export class BoardStore {
   readonly snoozed = computed(() => this.flagged().filter((r) => !r.quiet && this.isSnoozed(r)));
   readonly quiet = computed(() => this.flagged().filter((r) => r.quiet));
 
-  readonly sprintRisk = computed(() => this.result()?.sprintRisk ?? null);
+  /** The sprint's story, worked out in main: team-wide, so filters and snoozes never change it. */
+  readonly summary = computed(() => this.result()?.summary ?? null);
 
   readonly needsReview = computed(() => this.slice('needs-review'));
   readonly changesRequested = computed(() => this.slice('changes-requested'));

@@ -48,16 +48,6 @@
 .board-section__count { font: var(--text-data); color: var(--text-2); }
 .board-section__actions { display: inline-flex; gap: var(--space-3); margin-left: auto; }
 
-.sprint-risk {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font: var(--text-compact);
-  font-weight: var(--weight-semibold);
-  color: var(--warning-text);
-}
-.sprint-risk--ok { color: var(--text-2); }
 
 /* Titles take the width that's left and truncate; the other columns fit their content. */
 .q-table .col-title { width: 100%; max-width: 0; }

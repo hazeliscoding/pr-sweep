@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { annotate } from '../../../dist/main/main/core/attention.js';
 import { loadFixture, relativeDate, relativeTime } from '../../../dist/main/main/core/fixture.js';
 import { localDate as today, resolvePeriod } from '../../../dist/main/main/core/sprints.js';
+import { summarize } from '../../../dist/main/main/core/summary.js';
 
 const NOW = Date.parse('2026-09-29T15:00:00Z');
 const HOUR = 3_600_000;
@@ -110,8 +111,8 @@ assert.throws(
   assert.equal(period.kind, 'sprint');
   assert.equal(period.isCurrent, true);
   const judged = annotate(
-    { schema: 0, fetchedAt: '', org: f.profile.org, range: period.range, ...f.sweep, sprintRisk: null },
-    { now: Date.now(), staleDays: f.profile.staleDays, rangeEnd: period.range.end },
+    { schema: 0, fetchedAt: '', org: f.profile.org, range: period.range, ...f.sweep, summary: null },
+    { now: Date.now(), staleDays: f.profile.staleDays },
   );
   const reasons = new Set(judged.open.flatMap((r) => r.attention.map((a) => a.reason)));
   assert.deepEqual(
@@ -124,7 +125,9 @@ assert.throws(
   );
   assert.ok(judged.open.some((r) => r.quiet), 'busy has a quiet tail');
   assert.ok(judged.open.some((r) => r.attention.length === 0), 'busy has healthy rows too');
-  assert.ok(judged.sprintRisk, 'busy ends its range within two days');
+  const summary = summarize(judged, { today: today() });
+  assert.ok(summary.endingSoon, 'busy ends its sprint within two days');
+  assert.ok(summary.blocked > 0 && summary.needsAttention > summary.blocked, 'busy has blocked and other flagged PRs');
 }
 
 console.log('fixture: relative times, defaults, validation, extends and busy coverage pass');
