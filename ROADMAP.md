@@ -317,9 +317,12 @@ on the `release/v0.12` branch.
       the `busy` fixture. *The screens were written in Quorum's voice as they were restyled; the
       pass fixed the main process's setup errors and one next step ("Mark ready or close").
       `screenshot.mjs --readme` renders the README images at 2x.*
-- [ ] Review: before and after screenshots of every state in both themes, a keyboard pass, the
+- [x] Review: before and after screenshots of every state in both themes, a keyboard pass, the
       v0.11 snooze, quiet and tray checks rerun on fixtures, and the renderer bundle size
-      recorded.
+      recorded. *All checks pass. The renderer is 987 KB (329 KB in v0.11), fonts 571 KB of it.
+      The pass found two things, both fixed: Ctrl+R blanked the window (a v0.11 bug: the
+      `./` base href dropped `index.html` from the router's URLs), and the Sprints/Custom switch
+      claimed to be radios without arrow keys, so it's toggle buttons now.*
 - [ ] `chore(release): v0.12.0` with its notes, then mark the pull request ready, merge it, and
       tag `v0.12.0`.
 
@@ -394,6 +397,8 @@ Theme: nothing new. Make what exists boringly reliable.
 - Read sprints from a GitHub Projects iteration field, the closest thing GitHub has to Azure
   DevOps iterations (needs the `read:project` token scope)
 - Post the standup straight to Slack or Teams
+- Ship only the `.woff2` fonts: Fontsource's `.woff` fallbacks are 306 KB that Chromium never
+  loads
 
 ## Not planned
 
