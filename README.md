@@ -18,13 +18,13 @@ own dashboard shows what's waiting on *you*, not on the team. PR Sweep puts the 
 on one board, sorted by GitHub's own review state, so nobody maintains labels or a project board.
 Set the org, the team and your sprint schedule once. It refreshes every five minutes from the tray.
 
-> **Status:** v0.12, in daily use. Windows and Linux builds are on [Releases](../../releases) and
-> update themselves. Next is a sprint summary with a standup you can paste into chat. See
+> **Status:** v0.13, in daily use. Windows and Linux builds are on [Releases](../../releases) and
+> update themselves. Next is grouping PRs that span repos by their ticket key. See
 > [ROADMAP.md](ROADMAP.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/board-dark.png">
-  <img alt="The board for a sample team in Sprint 24: a strip of counts for My queue, Needs review, Changes requested, Approved and Merged, author filter chips, the Sweep listing each stuck PR with its CI status, why it's stuck, for how long and a next-step button, then a table per section" src="docs/screenshots/board.png">
+  <img alt="The board for a sample team in Sprint 24: a strip with days left, open PRs, PRs needing attention, merged PRs, median time to merge and a Copy standup button, then author filter chips, the Sweep listing each stuck PR with its CI status, why it's stuck, for how long and a next-step button, then a table per section" src="docs/screenshots/board.png">
 </picture>
 
 ## Install
@@ -32,7 +32,8 @@ Set the org, the team and your sprint schedule once. It refreshes every five min
 Grab a build from [Releases](../../releases).
 
 - **Windows:** the setup exe installs PR Sweep with a Start Menu entry and keeps it updated. The
-  portable exe runs without installing, but doesn't update itself. Builds are signed with Azure
+  portable exe runs without installing and tells you when a new version is out, but doesn't
+  update itself: its Download button opens the release page. Builds are signed with Azure
   Trusted Signing. If SmartScreen still warns while the certificate builds reputation, choose
   *More info → Run anyway*.
 - **Linux:** the AppImage runs on any distro (`chmod +x pr-sweep-*.AppImage`, then run it) and
@@ -66,8 +67,14 @@ Grab a build from [Releases](../../releases).
   feedback nobody has addressed, pushes waiting on a re-review, approvals nobody merged, and PRs
   nobody was asked to review. Each row says how long it has been that way, with a one-click next
   step. PRs that are only waiting or stale, or untouched for a month, sit behind a toggle, and
-  you can snooze a row until it changes or tomorrow. In a sprint's last two days, it also says how
-  many open PRs aren't approved yet.
+  you can snooze a row until it changes or tomorrow.
+- **Sums up the sprint** at the top: days left, what's open and not yet approved, what needs
+  attention and how much of it is blocked, what merged since yesterday, and the median time to
+  merge. It always counts the whole team, whatever you filter. In the sprint's last two days it
+  warns about PRs that aren't approved yet.
+- **Copies a standup** in one click: what merged since the last working day, then what's
+  blocked, what needs attention and what's in review, each PR once, with links. It pastes
+  formatted into Teams and Slack, and as Markdown into Discord, without preview cards piling up.
 - **Knows your sprint.** Give it the first sprint's start and the sprint length, and the board
   opens on the current sprint, moves on when it ends, and steps back and forward with the arrows.
   Rename a sprint or make one longer, and the sprints after it follow.

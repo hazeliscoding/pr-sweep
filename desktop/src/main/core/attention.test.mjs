@@ -5,12 +5,12 @@
  * node src/main/core/attention.test.mjs
  */
 import assert from 'node:assert';
-import { annotate, attention, isQuiet, sprintRisk } from '../../../dist/main/main/core/attention.js';
+import { annotate, attention, isQuiet, standupGroup } from '../../../dist/main/main/core/attention.js';
 
 const NOW = Date.parse('2026-09-26T12:00:00Z');
 const HOUR = 3_600_000;
 const ago = (hours) => new Date(NOW - hours * HOUR).toISOString();
-const ctx = (patch = {}) => ({ now: NOW, staleDays: 5, rangeEnd: null, ...patch });
+const ctx = (patch = {}) => ({ now: NOW, staleDays: 5, ...patch });
 
 /** A healthy open PR: asked for review two hours ago, CI green. */
 function pr(patch = {}) {
@@ -172,21 +172,6 @@ assert.deepEqual(reasons(pr()), []);
   assert.equal(quiet({}), false, 'nothing flagged, nothing quiet');
 }
 
-// --- sprintRisk: only in the last two days of a range with an end ---
-{
-  const rows = [
-    pr({ bucket: 'approved' }),
-    pr({ bucket: 'needs-review' }),
-    pr({ bucket: 'changes-requested' }),
-    pr({ bucket: 'needs-review', isDraft: true }),
-  ];
-  assert.strictEqual(sprintRisk(rows, ctx()), null, 'open-ended range');
-  assert.strictEqual(sprintRisk(rows, ctx({ rangeEnd: '2026-10-01' })), null, 'five days out');
-  assert.deepEqual(sprintRisk(rows, ctx({ rangeEnd: '2026-09-28' })), { endsInDays: 2, notApproved: 2 }, 'drafts excluded');
-  assert.deepEqual(sprintRisk(rows, ctx({ rangeEnd: '2026-09-26' })), { endsInDays: 0, notApproved: 2 }, 'ends today');
-  assert.strictEqual(sprintRisk(rows, ctx({ rangeEnd: '2026-09-25' })), null, 'already over');
-}
-
 // --- annotate: open rows get reasons, merged and queue rows never do ---
 {
   const failing = pr({ ci: 'failure' });
@@ -198,15 +183,45 @@ assert.deepEqual(reasons(pr()), []);
     open: [failing, pr({ number: 8 })],
     merged: [pr({ number: 9, bucket: 'merged', ci: 'failure' })],
     queue: [pr({ number: 10, ci: 'failure' })],
-    sprintRisk: null,
+    summary: null,
   };
-  const out = annotate(result, ctx({ rangeEnd: '2026-09-27' }));
+  const out = annotate(result, ctx());
   assert.deepEqual(out.open.map((r) => r.attention.map((a) => a.reason)), [['CI_FAILING'], []]);
   assert.deepEqual(out.open.map((r) => r.quiet), [false, false]);
   assert.deepEqual(out.merged[0].attention, []);
   assert.deepEqual(out.queue[0].attention, []);
-  assert.deepEqual(out.sprintRisk, { endsInDays: 1, notApproved: 2 });
   assert.deepEqual(failing.attention, [], 'the input rows are left alone');
 }
 
-console.log('attention: every reason, drafts, thresholds, ordering and sprint risk pass');
+// --- standupGroup: Blocked, then the rest of the Sweep, then In review; drafts stay out ---
+{
+  const judged = (patch) => {
+    const row = pr(patch);
+    const reasons = attention(row, ctx());
+    return { ...row, attention: reasons, quiet: isQuiet(row, reasons, ctx()) };
+  };
+  assert.equal(standupGroup(judged({ ci: 'failure' })), 'blocked', 'CI failing');
+  assert.equal(standupGroup(judged({ bucket: 'approved', approvedAt: ago(30), mergeable: 'conflicting' })), 'blocked', 'a conflict');
+  assert.equal(
+    standupGroup(judged({ bucket: 'changes-requested', changesRequestedAt: ago(30), lastCommitAt: ago(40) })),
+    'blocked',
+    'changes left for over a day',
+  );
+  assert.equal(
+    standupGroup(judged({ bucket: 'changes-requested', changesRequestedAt: ago(3), lastCommitAt: ago(40) })),
+    'review',
+    'changes requested today are still in review',
+  );
+  assert.equal(standupGroup(judged({ bucket: 'approved', approvedAt: ago(30) })), 'attention', 'approved, not merged');
+  assert.equal(standupGroup(judged({ requestedReviewers: [], requestCount: 0, reviewCount: 0 })), 'attention', 'no reviewers');
+  assert.equal(standupGroup(judged({})), 'review', 'nothing flagged');
+  const waiting = judged({ createdAt: ago(7 * 24), updatedAt: ago(7 * 24) });
+  assert.equal(waiting.quiet, true);
+  assert.equal(standupGroup(waiting), 'review', 'quiet rows count as in review');
+  const abandoned = judged({ ci: 'failure', updatedAt: ago(40 * 24) });
+  assert.equal(abandoned.quiet, true);
+  assert.equal(standupGroup(abandoned), 'review', 'even when failing, a quiet row is in review');
+  assert.strictEqual(standupGroup(judged({ isDraft: true, createdAt: ago(9 * 24) })), null, 'drafts stay out');
+}
+
+console.log('attention: every reason, drafts, thresholds, ordering and standup groups pass');

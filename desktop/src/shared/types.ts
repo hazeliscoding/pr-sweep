@@ -146,11 +146,45 @@ export interface Attention {
   href: string;
 }
 
-/** Open PRs not yet approved, in the range's last days. */
-export interface SprintRisk {
-  /** 0 = the range ends today. */
-  endsInDays: number;
+/**
+ * The sprint's story for the health strip, worked out in main after every sweep
+ * (core/summary.ts). Team-wide: author chips, search and snoozes never change it.
+ */
+export interface SprintSummary {
+  /** Where today falls against the range. */
+  when: 'before' | 'during' | 'after';
+  /** Whole days from today to the range's last day, 0 on the last day; null without an end. */
+  daysLeft: number | null;
+  /** In the range's last two days, when PRs that aren't approved deserve a warning. */
+  endingSoon: boolean;
+  /** "Sep 17" or "Oct 1", with the year when it isn't this one. */
+  startLabel: string;
+  endLabel: string | null;
+  open: number;
+  /** Open PRs that aren't drafts and aren't approved. */
   notApproved: number;
+  /** Flagged and not quiet: the standup's Blocked plus Needs attention. */
+  needsAttention: number;
+  blocked: number;
+  /** Flagged but quiet, so left out of needsAttention. */
+  quiet: number;
+  merged: number;
+  /** Merged since the last working day began: "3 since Monday". */
+  mergedSince: number;
+  /** That day's name, or the range's start date when the range began after it. */
+  sinceLabel: string;
+  /** The last working day came before the range began, so "since" means since the start. */
+  sinceStart: boolean;
+  /** Median of merge time minus open time over the merged PRs; null when none merged. */
+  medianMergeMs: number | null;
+}
+
+/** What Copy standup put on the clipboard, for its confirmation. */
+export interface StandupCounts {
+  merged: number;
+  blocked: number;
+  attention: number;
+  review: number;
 }
 
 export interface PrRow {
@@ -195,7 +229,7 @@ export interface PrRow {
  * incremental refreshes keep cached rows until each PR changes on GitHub, so a
  * snapshot from an older build must be swept afresh, never painted or patched.
  */
-export const SWEEP_SCHEMA = 5;
+export const SWEEP_SCHEMA = 6;
 
 export interface SweepResult {
   /** SWEEP_SCHEMA when this was written; absent in snapshots from before v0.11. */
@@ -208,15 +242,18 @@ export interface SweepResult {
   merged: PrRow[];
   /** Open PRs org-wide with the signed-in user's review requested — any author, any age. */
   queue: PrRow[];
-  sprintRisk: SprintRisk | null;
+  summary: SprintSummary | null;
 }
 
 /** Auto-update progress pushed from main; null = nothing in flight. */
 export interface UpdateState {
-  status: 'downloading' | 'ready';
+  /** 'available' is the portable exe's only state: it can't install an update, so it links to one. */
+  status: 'available' | 'downloading' | 'ready';
   version: string;
-  /** 0–100 while downloading; 100 once ready. */
+  /** 0–100 while downloading; 100 once ready; 0 when only available. */
   percent: number;
+  /** The release page, when available. */
+  url?: string;
 }
 
 export interface AuthStatus {
@@ -250,6 +287,8 @@ export interface PrSweepApi {
   resolvePeriod(): Promise<ResolvedPeriod>;
   /** A schedule's sprints around today, for previewing edits before (and after) they're saved. */
   previewSprints(schedule: SprintSchedule): Promise<SprintPreview>;
+  /** Build the standup from the sweep on screen and put it on the clipboard as rich text and Markdown. */
+  copyStandup(result: SweepResult): Promise<StandupCounts>;
   /**
    * Push the latest sweep's tray-relevant slices: the review queue (counts +
    * review-request toasts), the viewer's own open PRs (approval / changes-

@@ -44,7 +44,16 @@ const THEME_KEY = 'prsweep-theme';
         }
         <span class="spacer"></span>
         @if (store.updateState(); as update) {
-          @if (update.status === 'downloading') {
+          @if (update.status === 'available') {
+            <button
+              class="q-btn q-btn--sm"
+              title="v{{ update.version }} is out. This portable copy doesn't update itself: download the new one from GitHub."
+              (click)="store.openUrl(update.url!)"
+            >
+              <q-icon name="download" [size]="12" />
+              Download v{{ update.version }}
+            </button>
+          } @else if (update.status === 'downloading') {
             <span class="q-badge q-badge--info" title="A new version is downloading in the background">
               <q-icon name="download" [size]="12" />
               Downloading v{{ update.version }} · {{ update.percent }}%

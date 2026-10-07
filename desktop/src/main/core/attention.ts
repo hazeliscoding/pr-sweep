@@ -1,20 +1,18 @@
 /**
  * The attention engine: the single definition of "this PR needs a human". The
- * Sweep section, the tray line and (in v0.12) the sprint summary all read its
+ * Sweep section, the tray line, the sprint summary and the standup all read its
  * output. It runs in the main process after every sweep, over every open row,
  * cached ones included: reasons depend on the clock, so a verdict saved once on
  * a row would go stale while the row sat unchanged in the snapshot.
  *
  * Pure: no I/O, and the clock comes in through the context.
  */
-import { Attention, AttentionReason, PrRow, SprintRisk, SweepResult } from '../../shared/types';
+import { Attention, AttentionReason, PrRow, SweepResult } from '../../shared/types';
 
 export interface AttentionContext {
   now: number;
   /** The profile's stale threshold. 0 turns off the slow reasons: waiting, stale, old draft. */
   staleDays: number;
-  /** The range's end date. Sprint risk only exists when there is one. */
-  rangeEnd: string | null;
 }
 
 /** Most severe first. An Attention's severity is its 1-based place here. */
@@ -36,8 +34,6 @@ const DAY = 24 * HOUR;
 const SETTLE_MS = DAY;
 /** Time for the author to add reviewers before a PR counts as unassigned. */
 const NO_REVIEWERS_GRACE_MS = HOUR;
-/** Sprint risk shows in the range's last days: in the last two, the end day included. */
-const SPRINT_RISK_DAYS = 2;
 /** Waiting, stale and old draft: reasons that only say time has passed. */
 const SLOW_SEVERITY = ORDER.indexOf('WAITING_FOR_REVIEW') + 1;
 /** Untouched this long, a PR is unlikely to get action this sprint, whatever its reasons. */
@@ -100,15 +96,20 @@ export function isQuiet(row: PrRow, reasons: Attention[], ctx: AttentionContext)
   return reasons[0].severity >= SLOW_SEVERITY || ctx.now - Date.parse(row.updatedAt) > QUIET_IDLE_MS;
 }
 
-/** How many open PRs aren't approved yet, in the range's last days; null otherwise. */
-export function sprintRisk(rows: PrRow[], ctx: AttentionContext): SprintRisk | null {
-  if (!ctx.rangeEnd) return null;
-  // Whole days from the local date today to the end date, both as UTC midnights.
-  const now = new Date(ctx.now);
-  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  const endsInDays = Math.round((Date.parse(ctx.rangeEnd) - today) / DAY);
-  if (endsInDays < 0 || endsInDays > SPRINT_RISK_DAYS) return null;
-  return { endsInDays, notApproved: rows.filter((r) => !r.isDraft && r.bucket !== 'approved').length };
+/** Reasons someone has to fix before the PR can move: the standup's Blocked group. */
+const BLOCKED: ReadonlySet<AttentionReason> = new Set(['CI_FAILING', 'MERGE_CONFLICT', 'CHANGES_NOT_ADDRESSED']);
+
+export type StandupGroup = 'blocked' | 'attention' | 'review';
+
+/**
+ * Where a judged open row goes in the standup, and so which count it adds to in
+ * the health strip: Blocked, then the rest of the Sweep, then In review, which
+ * takes quiet rows and anything not flagged. Drafts aren't in the standup.
+ */
+export function standupGroup(row: PrRow): StandupGroup | null {
+  if (row.isDraft) return null;
+  if (row.quiet || row.attention.length === 0) return 'review';
+  return row.attention.some((a) => BLOCKED.has(a.reason)) ? 'blocked' : 'attention';
 }
 
 /** The sweep with every open row judged afresh. Merged and queue rows never need attention. */
@@ -119,6 +120,5 @@ export function annotate(result: SweepResult, ctx: AttentionContext): SweepResul
       const reasons = attention(row, ctx);
       return { ...row, attention: reasons, quiet: isQuiet(row, reasons, ctx) };
     }),
-    sprintRisk: sprintRisk(result.open, ctx),
   };
 }

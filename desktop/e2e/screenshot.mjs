@@ -41,6 +41,10 @@ async function launch(config, env) {
     rmSync(userData, { recursive: true, force: true });
     throw new Error(`the app uses ${actual}, not the throwaway folder — aborting`);
   }
+  // Copy standup writes the system clipboard; a screenshot run leaves yours alone.
+  await app.evaluate(({ clipboard }) => {
+    clipboard.write = () => undefined;
+  });
   const win = await app.firstWindow();
   // The app scrolls inside its main pane, so a full-page shot stops at the
   // window's height: a tall viewport captures every section.
@@ -89,6 +93,9 @@ const STATES = {
   async busy(win) {
     await boardReady(win);
     await shoot(win, 'busy');
+    await button(win, 'Copy standup').click();
+    await win.getByText(/^Copied: /).waitFor();
+    await shoot(win, 'busy-standup');
     await button(win, /^Snooze /).first().click();
     await button(win, /Show snoozed/).click();
     await shoot(win, 'busy-snoozed');
@@ -134,6 +141,10 @@ const STATES = {
     await shoot(win, 'update-downloading');
     await button(win, /Restart/).waitFor();
     await shoot(win, 'update-ready');
+  },
+  async 'update-portable'(win) {
+    await button(win, /Download v0\.13\.1/).waitFor();
+    await shoot(win, 'update-portable');
   },
   async loading(win) {
     await win.waitForTimeout(1500);

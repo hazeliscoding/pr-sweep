@@ -130,7 +130,8 @@ because smaller pages meant more requests (172 s median instead of 109 s).
 - **`NEEDS_RE_REVIEW` is a reason of its own.** "Changes requested" has two next steps: the
 author's (address the feedback) and the reviewer's (re-review after the push).
 - **Sprint-end risk is a header line, not a row reason.** As a reason it would flag nearly every
-unapproved PR in the last two days, when the list should be shortest.
+unapproved PR in the last two days, when the list should be shortest. *v0.13 moves the line into
+the health strip.*
 - **Quiet rows keep the Sweep short** (decided 2026-09-27). A flagged row goes quiet when its
 worst reason is a slow one (waiting, stale, old draft) or nobody has touched the PR in 30+
 days. Quiet rows sit behind "Show quiet", muted, and the tray count leaves them out. On the
@@ -145,6 +146,50 @@ renderer has no test harness; it's checked by hand.
 There are no new notifications.
 - **Each roadmap release is built on its own branch** (`release/vX.Y`) and reaches `main`
 through a pull request.
+
+## v0.13 decisions (2026-09-29)
+
+- **The health strip tells the sprint's story:** days left, open, needs attention, merged and
+median time to merge, each with a one-line note. The per-status counts stay in the table
+headings, and My queue keeps its own table and the tray.
+- **Sprint numbers are the team's.** Author chips, search and snoozes never change the strip or
+the standup; they only shape the tables and the Sweep. Otherwise one chip would turn time to
+merge into an individual cycle time.
+- **Needs attention counts every flagged PR except quiet ones**, so it equals the standup's
+Blocked plus Needs attention.
+- **The standup lists each open PR once**, in its most urgent group, all from the attention
+engine: Blocked (CI failing, a merge conflict, or requested changes left for over a day), Needs
+attention (the rest of the Sweep), and In review (everything else, quiet rows and same-day
+change requests included). Merged since the last working day comes first. Drafts stay out.
+- **Lines name the author's login as plain text**, with no @mention and no per-person counts.
+- **Copy standup puts rich text and Markdown on the clipboard together.** Slack and Teams paste
+the formatted version, with PR refs as links; plain-text places get the Markdown. Slack's
+message box doesn't read Markdown links, so Markdown alone wouldn't paste cleanly there. A paste
+test in real Slack and Teams comes before anything is built on the format.
+- **Markdown links are written `[ref](<url>)`.** Discord pastes the Markdown version, and the
+angle brackets stop it adding a preview card per link; other Markdown readers see an ordinary
+link. The formatted version writes every non-ASCII character as an HTML entity, so no app can
+misread the clipboard's encoding.
+- **The last working day is the previous weekday**, so a Monday standup covers since Friday.
+"Merged since" only covers what the board already fetched: on a sprint's first day it says
+nothing has merged yet this sprint, rather than paying for another search.
+- **Days left are calendar days**, as the sprint-end warning counted them: "Ends today" on the
+last day, and "No end date" for an open custom range.
+- **The sprint-end line moves from the Sweep header into the strip**, so it's said once.
+- **Median time to merge runs from open to merge**, draft time included, so it needs no new
+fields. It shows "–" until something has merged.
+- **One click, no preview.** The button says what it copied, like "Copied: 3 merged, 3 blocked,
+3 need attention, 5 in review". It only appears when the board's period includes today.
+- **Sweep time is unchanged:** no new GitHub fields. The summary replaces `sprintRisk` in the
+sweep result (schema 6), so the first refresh after updating is a full one.
+
+## v0.13 decisions (2026-10-07)
+
+- **The portable exe says when a new version is out**, and joins v0.13 at the owner's request. It
+checks on the installed build's schedule, downloads nothing, and the top bar's "Download
+v0.13.1" opens the release page. It doesn't update itself: electron-updater only installs
+through the NSIS installer, and swapping a running portable exe fights Windows file locks.
+Anyone who wants automatic updates uses the installer.
 
 ## Shipped
 
@@ -353,17 +398,45 @@ the README shows the new screenshots.
 ## v0.13: Sprint summary
 
 Theme: the board opens with how the sprint is going, and turns that into a standup in one click.
+Built on the `release/v0.13` branch.
 
-- [ ] The v0.12 health strip gains the sprint's story: merged, open, needs attention, and days
-  left in the sprint.
-- [ ] Median time to merge for PRs merged in the sprint, from `mergedAt − createdAt`. No new
-  fields.
-- [ ] **Copy standup as Markdown**: merged since the last working day, in review, blocked
-  (CI failing, changes requested, conflicts), needs attention.
-- [ ] No per-person numbers anywhere.
+- [x] Roadmap, `AGENTS.md` and a draft pull request for the milestone.
+- [x] Paste test: a throwaway standup in rich text and Markdown, pasted into real Slack and
+  Teams, before anything is built on the format. *Teams keeps the bold headings, bullet lists
+  and PR links, shows a title's Markdown and HTML characters as typed, and previews only the
+  first link (its × removes the card before sending). Discord takes the Markdown, and stacked a
+  preview card per link until links became `<url>`. Slack wasn't tested: no workspace to hand.
+  To fix in the build: the title needs a gap before the first group in Teams.*
+- [x] `core/summary.ts` with tests: days left, open and not yet approved, needs attention,
+  merged, merged since the last working day, and median time to merge. It replaces `sprintRisk`
+  in the sweep result (schema 6). *The Blocked / Needs attention / In review rule is
+  `standupGroup` in the attention engine, so the strip and the standup can't disagree.*
+- [x] Health strip: the sprint's story, team-wide, with a note under each number. The Sweep
+  header loses its sprint line. *Checked on the busy fixture: an author chip, search and a
+  snooze each leave every strip number as it was.*
+- [x] `core/standup.ts` with tests: the groups, the "since Friday" wording, and titles escaped
+  for both Markdown and HTML.
+- [x] Copy standup: the button, both formats written to the clipboard by the main process, and a
+  "Copied" confirmation with the counts. Shown only when the period includes today. *It sits at
+  the end of the health strip. The screenshot script stubs the clipboard, so a run never
+  overwrites yours.*
+- [x] Fixture screenshots in both themes, README, a keyboard pass and the renderer bundle size.
+  *30 screenshots (a new `busy-standup` state). Copy standup comes right after the top bar in
+  the Tab order, and the v0.11 snooze, quiet and tray checks still pass. The renderer is
+  988.5 KB, 1.6 KB more than v0.12.*
+- [x] Portable exe: a "Download vX.Y.Z" button in the top bar when a new release is out, opening
+  its release page. *A local package versioned 0.11.0, run as the portable launcher runs it,
+  offered "Download v0.12.0" from the live releases and downloaded nothing. The portable exe finds
+  the release through the `app-update.yml` that electron-builder writes for the NSIS target, so
+  the two targets must keep building together. New fixture: `update-portable`.*
+- [x] `chore(release): v0.13.0` with its notes in `docs/releases/v0.13.0.md`, then mark the pull
+  request ready, merge it, and tag `v0.13.0`. *The renderer is 989.0 KB, 2.1 KB more than v0.12.*
+- [ ] Once a newer release is out, check that the v0.13.0 portable exe offers it and that
+  Download opens its release page.
 
-**Done when:** you can run a standup from the app and paste the summary into Slack or Teams
-without editing it.
+**Done when:** you can run a standup from the app and paste it into Teams or Discord without
+editing it (Slack, untested, gets the same formatted version as Teams), the strip's numbers agree with the standup's, and no number in the strip changes
+when you pick an author chip.
 
 ## v0.14: Related work
 

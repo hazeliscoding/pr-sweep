@@ -1,0 +1,9 @@
+{
+  "extends": "busy",
+  "update": [
+    {
+      "afterMs": 1500,
+      "state": { "status": "available", "version": "0.13.1", "percent": 0, "url": "https://github.com/hazeliscoding/pr-sweep/releases/tag/v0.13.1" }
+    }
+  ]
+}
