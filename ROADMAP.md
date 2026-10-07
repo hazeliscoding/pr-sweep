@@ -429,8 +429,10 @@ Built on the `release/v0.13` branch.
   offered "Download v0.12.0" from the live releases and downloaded nothing. The portable exe finds
   the release through the `app-update.yml` that electron-builder writes for the NSIS target, so
   the two targets must keep building together. New fixture: `update-portable`.*
-- [ ] `chore(release): v0.13.0` with its notes, then mark the pull request ready, merge it, and
-  tag `v0.13.0`.
+- [x] `chore(release): v0.13.0` with its notes in `docs/releases/v0.13.0.md`, then mark the pull
+  request ready, merge it, and tag `v0.13.0`. *The renderer is 989.0 KB, 2.1 KB more than v0.12.*
+- [ ] Once a newer release is out, check that the v0.13.0 portable exe offers it and that
+  Download opens its release page.
 
 **Done when:** you can run a standup from the app and paste it into Teams or Discord without
 editing it (Slack, untested, gets the same formatted version as Teams), the strip's numbers agree with the standup's, and no number in the strip changes
