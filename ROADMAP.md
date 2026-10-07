@@ -183,6 +183,14 @@ fields. It shows "–" until something has merged.
 - **Sweep time is unchanged:** no new GitHub fields. The summary replaces `sprintRisk` in the
 sweep result (schema 6), so the first refresh after updating is a full one.
 
+## v0.13 decisions (2026-10-07)
+
+- **The portable exe says when a new version is out**, and joins v0.13 at the owner's request. It
+checks on the installed build's schedule, downloads nothing, and the top bar's "Download
+v0.13.1" opens the release page. It doesn't update itself: electron-updater only installs
+through the NSIS installer, and swapping a running portable exe fights Windows file locks.
+Anyone who wants automatic updates uses the installer.
+
 ## Shipped
 
 Ordering then: distribution first, because every later release gets cheaper once CI ships
@@ -416,6 +424,8 @@ Built on the `release/v0.13` branch.
   *30 screenshots (a new `busy-standup` state). Copy standup comes right after the top bar in
   the Tab order, and the v0.11 snooze, quiet and tray checks still pass. The renderer is
   988.5 KB, 1.6 KB more than v0.12.*
+- [ ] Portable exe: a "Download vX.Y.Z" button in the top bar when a new release is out, opening
+  its release page.
 - [ ] `chore(release): v0.13.0` with its notes, then mark the pull request ready, merge it, and
   tag `v0.13.0`.
 
