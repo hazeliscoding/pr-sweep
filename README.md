@@ -18,8 +18,8 @@ own dashboard shows what's waiting on *you*, not on the team. PR Sweep puts the 
 on one board, sorted by GitHub's own review state, so nobody maintains labels or a project board.
 Set the org, the team and your sprint schedule once. It refreshes every five minutes from the tray.
 
-> **Status:** v0.12, in daily use. Windows and Linux builds are on [Releases](../../releases) and
-> update themselves. Next is a sprint summary with a standup you can paste into chat. See
+> **Status:** v0.13, in daily use. Windows and Linux builds are on [Releases](../../releases) and
+> update themselves. Next is grouping PRs that span repos by their ticket key. See
 > [ROADMAP.md](ROADMAP.md).
 
 <picture>
