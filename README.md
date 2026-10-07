@@ -32,7 +32,8 @@ Set the org, the team and your sprint schedule once. It refreshes every five min
 Grab a build from [Releases](../../releases).
 
 - **Windows:** the setup exe installs PR Sweep with a Start Menu entry and keeps it updated. The
-  portable exe runs without installing, but doesn't update itself. Builds are signed with Azure
+  portable exe runs without installing and tells you when a new version is out, but doesn't
+  update itself: its Download button opens the release page. Builds are signed with Azure
   Trusted Signing. If SmartScreen still warns while the certificate builds reputation, choose
   *More info → Run anyway*.
 - **Linux:** the AppImage runs on any distro (`chmod +x pr-sweep-*.AppImage`, then run it) and
