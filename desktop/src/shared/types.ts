@@ -247,10 +247,13 @@ export interface SweepResult {
 
 /** Auto-update progress pushed from main; null = nothing in flight. */
 export interface UpdateState {
-  status: 'downloading' | 'ready';
+  /** 'available' is the portable exe's only state: it can't install an update, so it links to one. */
+  status: 'available' | 'downloading' | 'ready';
   version: string;
-  /** 0–100 while downloading; 100 once ready. */
+  /** 0–100 while downloading; 100 once ready; 0 when only available. */
   percent: number;
+  /** The release page, when available. */
+  url?: string;
 }
 
 export interface AuthStatus {

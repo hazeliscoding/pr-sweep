@@ -18,6 +18,7 @@ import { SnapshotStore } from './core/snapshot.store';
 import { TokenStore } from './core/token.store';
 import { registerIpc, Services } from './ipc';
 import { TrayController, TraySync } from './tray';
+import { UpdateState } from '../shared/types';
 
 // Keep the userData folder at %APPDATA%/pr-sweep even though the product now
 // displays as "PR Sweep" — existing configs and tokens must survive the rename.
@@ -91,9 +92,15 @@ app.on('before-quit', () => {
 /** How often a running (possibly tray-hidden) app looks for a new release. */
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
+/** Where the portable exe sends its users for a new version (the publish config's repo). */
+const RELEASES_URL = 'https://github.com/hazeliscoding/pr-sweep/releases';
+
 /**
- * Auto-update for installed builds only — the portable exe has no update story
- * (PORTABLE_EXECUTABLE_DIR is set by its launcher), those users re-download.
+ * Auto-update for packaged builds. The portable exe (PORTABLE_EXECUTABLE_DIR
+ * is set by its launcher) only checks: electron-updater installs through the
+ * NSIS installer, so the header links to the release page instead. The check
+ * reads the app-update.yml electron-builder writes for the NSIS target, which
+ * the portable exe shares because both targets pack the same app folder.
  *
  * Close-to-tray means the app can run for weeks without a relaunch, so a
  * launch-only check would never fire for exactly the users who keep it open;
@@ -102,10 +109,11 @@ const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
  * renderer and tray both offer "restart to update" (no forced restart).
  */
 function setupAutoUpdate(): void {
-  if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_DIR) return;
+  if (!app.isPackaged) return;
+  const portable = !!process.env.PORTABLE_EXECUTABLE_DIR;
+  autoUpdater.autoDownload = !portable;
 
-  const send = (state: { status: 'downloading' | 'ready'; version: string; percent: number } | null) =>
-    win?.webContents.send('update:state', state);
+  const send = (state: UpdateState | null) => win?.webContents.send('update:state', state);
   const install = () => {
     quitting = true;
     // isSilent: the assisted (non-one-click) installer would otherwise replay
@@ -118,7 +126,11 @@ function setupAutoUpdate(): void {
   let version = '';
   autoUpdater.on('update-available', (info) => {
     version = info.version;
-    send({ status: 'downloading', version, percent: 0 });
+    send(
+      portable
+        ? { status: 'available', version, percent: 0, url: `${RELEASES_URL}/tag/v${version}` }
+        : { status: 'downloading', version, percent: 0 },
+    );
   });
   autoUpdater.on('download-progress', (p) => {
     send({ status: 'downloading', version, percent: Math.round(p.percent) });
