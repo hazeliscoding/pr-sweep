@@ -424,8 +424,11 @@ Built on the `release/v0.13` branch.
   *30 screenshots (a new `busy-standup` state). Copy standup comes right after the top bar in
   the Tab order, and the v0.11 snooze, quiet and tray checks still pass. The renderer is
   988.5 KB, 1.6 KB more than v0.12.*
-- [ ] Portable exe: a "Download vX.Y.Z" button in the top bar when a new release is out, opening
-  its release page.
+- [x] Portable exe: a "Download vX.Y.Z" button in the top bar when a new release is out, opening
+  its release page. *A local package versioned 0.11.0, run as the portable launcher runs it,
+  offered "Download v0.12.0" from the live releases and downloaded nothing. The portable exe finds
+  the release through the `app-update.yml` that electron-builder writes for the NSIS target, so
+  the two targets must keep building together. New fixture: `update-portable`.*
 - [ ] `chore(release): v0.13.0` with its notes, then mark the pull request ready, merge it, and
   tag `v0.13.0`.
 
