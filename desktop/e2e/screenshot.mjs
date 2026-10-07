@@ -142,6 +142,10 @@ const STATES = {
     await button(win, /Restart/).waitFor();
     await shoot(win, 'update-ready');
   },
+  async 'update-portable'(win) {
+    await button(win, /Download v0\.13\.1/).waitFor();
+    await shoot(win, 'update-portable');
+  },
   async loading(win) {
     await win.waitForTimeout(1500);
     await shoot(win, 'loading');
