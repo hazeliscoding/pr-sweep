@@ -395,7 +395,7 @@ on the `release/v0.12` branch.
   claimed to be radios without arrow keys, so it's toggle buttons now.*
 - [x] `chore(release): v0.12.0` with its notes in `docs/releases/v0.12.0.md`, then mark the pull
   request ready, merge it, and tag `v0.12.0`. *Checked by hand on a real org before release.*
-- [ ] Update an installed v0.11 through the auto-updater and check that its profile, snoozes
+- [x] Update an installed v0.11 through the auto-updater and check that its profile, snoozes
   and cached board carry over.
 
 **Done when:** every fixture state is restyled in both themes, with before and after screenshots
@@ -440,7 +440,7 @@ Built on the `release/v0.13` branch.
   the two targets must keep building together. New fixture: `update-portable`.*
 - [x] `chore(release): v0.13.0` with its notes in `docs/releases/v0.13.0.md`, then mark the pull
   request ready, merge it, and tag `v0.13.0`. *The renderer is 989.0 KB, 2.1 KB more than v0.12.*
-- [ ] Once a newer release is out, check that the v0.13.0 portable exe offers it and that
+- [x] Once a newer release is out, check that the v0.13.0 portable exe offers it and that
   Download opens its release page.
 
 **Done when:** you can run a standup from the app and paste it into Teams or Discord without
