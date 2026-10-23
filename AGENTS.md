@@ -153,11 +153,10 @@ Run these from the repo root unless noted.
 ## Releases
 
 - The app version lives in `desktop/package.json`. The root `package.json` version isn't used.
-- **Each roadmap release gets its own branch**, `release/vX.Y`, cut from `main`. All of that
-  milestone's commits go there. Open a draft pull request to `main` early, so CI runs on every
-  push, and keep its testing steps current. When the milestone's "Done when" holds, mark it
-  ready, merge, then tag `vX.Y.0` on `main`.
-- A roadmap release bumps the version once, in the last commit on its branch:
+- **Until 1.0, commits go straight to `main`** and are pushed as they land; CI runs on every
+  push to `main`. When the milestone's "Done when" holds, tag `vX.Y.0` on `main`. After 1.0, each
+  release gets its own branch, `release/vX.Y`, with a draft pull request to `main`.
+- A roadmap release bumps the version once, in the last commit of its milestone:
   `chore(release): v0.11.0`. A patch outside a milestone bumps it in the fix commit and ends the
   subject with it: `fix: single-instance lock … (v0.10.4)`.
 - **Every release has hand-written notes** in `docs/releases/vX.Y.Z.md`, committed with the
@@ -173,7 +172,7 @@ Run these from the repo root unless noted.
 - Pushing a `v*` tag runs `.github/workflows/release.yml`. It builds the signed Windows installer,
   the portable exe and the Linux AppImage, then publishes one GitHub release. The `latest*.yml`
   files and blockmaps must ship with every release, because the auto-updater reads them.
-- Only tag or push when the owner asks.
+- Push to `main` without asking until 1.0. Only tag when the owner asks.
 
 ## Working style
 

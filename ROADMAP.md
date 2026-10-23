@@ -97,6 +97,10 @@ becomes an update test in the release candidate, covering what v0.12 and v0.13 c
 and the end-to-end tests take over the snooze check. Gave up: watching real installed copies of
 each release update; the test updates a fresh install of the build under test from a local feed
 instead. Fixture screenshots stay, for reviewing how a change looks.
+- **Until 1.0, commits go straight to `main`** and are pushed as they land. CI already runs on
+every push to `main`, and with automated tests it carries the checks a milestone's pull request
+used to hold. Gave up: a draft pull request per milestone. After 1.0, each release goes back to
+its own branch.
 
 ## v0.11 decisions (2026-09-25)
 
@@ -162,7 +166,7 @@ test checks it.*
 - **The tray badge keeps counting your review queue.** The menu gains a team attention line.
 There are no new notifications.
 - **Each roadmap release is built on its own branch** (`release/vX.Y`) and reaches `main`
-through a pull request.
+through a pull request. *Superseded on 2026-10-22: until 1.0, commits go straight to `main`.*
 
 ## v0.13 decisions (2026-09-29)
 
