@@ -27,7 +27,7 @@ stats.
 history of state changes.
 - **Related-work grouping is in 1.0, in its minimal form:** ticket keys found in titles and
 branch names. Grouping by linked issues comes later. It's the last feature milestone, so it can
-slip to 1.1 without holding up 1.0.
+slip to 1.1 without holding up 1.0. *Superseded on 2026-10-22: it moves after 1.0.*
 - **Four minor releases to 1.0:** v0.11 Sweep, v0.12 Sprint summary, v0.13 Related work, v0.14
 Release candidate. Fixes ship as patch releases in between. *Superseded on 2026-09-29: five,
 with v0.12 Quorum and sprints.*
@@ -61,7 +61,7 @@ generated notes were just a compare link.
 - **v0.12 is Quorum and sprints.** PR Sweep adopts the Quorum Design System, and named sprints
 come back. The sprint summary moves to v0.13, so there are five minor releases to 1.0: v0.11
 Sweep, v0.12 Quorum and sprints, v0.13 Sprint summary, v0.14 Related work, v0.15 Release
-candidate.
+candidate. *Superseded on 2026-10-22: four, with Related work after 1.0.*
 - **Quorum, adapted.** Its tokens are copied as-is, with local AA changes: `text-3` fails in both
 themes (3.3–3.6:1), so it becomes `#636D7C` in light and `#8590A0` in dark. The contrast check
 found two more in the light theme: white button labels on `--accent` `#0D9488` reach only
@@ -81,6 +81,15 @@ in profile export. A custom range stays for one-off views.
 - **The fixture sweep moves from the release candidate into v0.12**, so the redesign can be
 reviewed in every state, including ones live data can't produce on demand. Running the
 screenshots in CI stays with the release candidate.
+
+## Decisions (2026-10-22)
+
+- **Related work moves after 1.0.** Its ticket keys (`ABC-123`) fit Jira, Linear and YouTrack,
+but not Azure Boards (`AB#123`), GitHub Issues (`#123`) or Shortcut (`sc-123`), so the minimal
+form would only help some teams. Grouping that works whatever tracker a team uses needs its own
+design. Gave up: cross-repo grouping in 1.0. The release candidate becomes v0.14, so there are
+four minor releases to 1.0: v0.11 Sweep, v0.12 Quorum and sprints, v0.13 Sprint summary, v0.14
+Release candidate.
 
 ## v0.11 decisions (2026-09-25)
 
@@ -237,7 +246,7 @@ clunky.
 - [x] Tests run in CI on every PR and push
 - [x] Keyboard navigation / accessibility pass (focusable PR rows, dialog semantics, focus rings)
 
-- Screenshot driver as a CI smoke test: *moved to the release candidate (v0.15), where the
+- Screenshot driver as a CI smoke test: *moved to the release candidate (v0.14), where the
 fixture sweep removes the token-secret blocker*
 
 ### v0.9: Platforms and performance ✅
@@ -438,20 +447,7 @@ Built on the `release/v0.13` branch.
 editing it (Slack, untested, gets the same formatted version as Teams), the strip's numbers agree with the standup's, and no number in the strip changes
 when you pick an author chip.
 
-## v0.14: Related work
-
-Theme: a feature that spans repos reads as one piece of work.
-
-- [ ] Fetch `headRefName` (a cheap scalar field).
-- [ ] Group open and merged PRs by a ticket key such as `ABC-123`, found in the title or the
-  branch name. PRs without a key render as they do today.
-- [ ] Per-profile on/off toggle. It has to survive config migration and profile
-  export/import. The key pattern stays built in unless dogfooding needs a custom one.
-- [ ] A group shows each PR's state and the group's most severe attention reason.
-
-**Done when:** a feature that spans 3 repos shows as one expandable group with each PR's state.
-
-## v0.15: Release candidate
+## v0.14: Release candidate
 
 Theme: nothing new. Make what exists boringly reliable.
 
@@ -462,11 +458,11 @@ Theme: nothing new. Make what exists boringly reliable.
 - [ ] README repositioned around the sprint pitch and the 1.0 promise.
 - [ ] Config migration and profile export/import tested with every setting added since v0.11.
 
-**Done when:** a 0.15.x build gets through a full sprint of daily use without needing a fix.
+**Done when:** a 0.14.x build gets through a full sprint of daily use without needing a fix.
 
 ## v1.0: Stable
 
-- [ ] v0.11 through v0.15 each reached installed copies (Windows installer and Linux AppImage)
+- [ ] v0.11 through v0.14 each reached installed copies (Windows installer and Linux AppImage)
   through the auto-updater, with no manual reinstall.
 - [ ] The 1.0 promise holds.
 
@@ -482,7 +478,11 @@ every user signing in again (Electron `safeStorage` tokens can't be read). If me
 sooner, a cheaper first step: move the refresh loop into the main process and close the
 window, instead of hiding it, when the app goes to the tray.
 - AI "explain this sprint", built on the attention engine
-- Grouping by linked issues (`closingIssuesReferences`) and GitHub Projects
+- Related work: PRs that span repos read as one piece of work, whatever tracker the team uses.
+Ticket keys in titles and branch names (`ABC-123`, `AB#123`), linked issues
+(`closingIssuesReferences`) and GitHub Projects. The pre-1.0 plan is a start: fetch
+`headRefName`, a per-profile toggle, and a group showing each PR's state and its most severe
+attention reason
 - Review-wait metrics for merged PRs (needs review timestamps on every merged PR, which is
 expensive)
 - Read sprints from a GitHub Projects iteration field, the closest thing GitHub has to Azure
