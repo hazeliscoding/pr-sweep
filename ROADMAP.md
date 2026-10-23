@@ -34,6 +34,7 @@ with v0.12 Quorum and sprints.*
 - **1.0 needs both** the feature milestones done and the auto-updater carrying installed copies
 through each of them. This replaces "1.0 when auto-update has proven itself across a few
 releases". Silent update install only landed in v0.10.3, so it has carried one update so far.
+*Superseded on 2026-10-22: an update test in CI replaces watching installed copies.*
 - **macOS is not planned for now.** There's no Mac to build and test on, and no Apple Developer
 Program membership. Gatekeeper blocks unsigned apps and macOS auto-update needs a signed build,
 so shipping unsigned would be worse than not shipping. Revisit if either changes.
@@ -90,6 +91,12 @@ form would only help some teams. Grouping that works whatever tracker a team use
 design. Gave up: cross-repo grouping in 1.0. The release candidate becomes v0.14, so there are
 four minor releases to 1.0: v0.11 Sweep, v0.12 Quorum and sprints, v0.13 Sprint summary, v0.14
 Release candidate.
+- **Checks are automated tests.** Anything the roadmap would check by hand runs as a test in CI
+instead, as in the owner's other desktop apps. The 1.0 gate that watched installed copies update
+becomes an update test in the release candidate, covering what v0.12 and v0.13 checked by hand,
+and the end-to-end tests take over the snooze check. Gave up: watching real installed copies of
+each release update; the test updates a fresh install of the build under test from a local feed
+instead. Fixture screenshots stay, for reviewing how a change looks.
 
 ## v0.11 decisions (2026-09-25)
 
@@ -150,7 +157,8 @@ of 32 open PRs flagged, with abandoned PRs burying the ones someone would act on
 constants, and the slow ones use the profile's `staleDays`.
 - **Snooze** hides a row until the PR updates, gains a more severe reason, or the next day comes.
 It's stored per machine in `localStorage` and never exported. It has no unit test, because the
-renderer has no test harness; it's checked by hand.
+renderer has no test harness; it's checked by hand. *Superseded on 2026-10-22: an end-to-end
+test checks it.*
 - **The tray badge keeps counting your review queue.** The menu gains a team attention line.
 There are no new notifications.
 - **Each roadmap release is built on its own branch** (`release/vX.Y`) and reaches `main`
@@ -449,21 +457,27 @@ when you pick an author chip.
 
 ## v0.14: Release candidate
 
-Theme: nothing new. Make what exists boringly reliable.
+Theme: nothing new. Make what exists boringly reliable, and prove it with tests in CI.
 
-- [ ] First-run, empty, loading and error states, checked end to end. That includes the
-  SSO-blind token and the pending OAuth-app approval.
-- [ ] The screenshot script runs in CI against the fixture sweep (under `xvfb-run`), with no
-  token secret needed. This is the item deferred from v0.8.
+- [ ] End-to-end tests: playwright-core drives the built app on fixtures and asserts the
+  first-run, empty, loading and error states, including the SSO-blind token and the pending
+  OAuth-app approval, plus snoozes. They run in CI under `xvfb-run`, with no token secret.
+- [ ] The screenshot script runs in the same CI job against the fixture sweep. This is the item
+  deferred from v0.8.
+- [ ] Update test in CI: package the build twice, the second with a higher version, both pointed
+  at a local update feed. Install the first (Windows installer and Linux AppImage), seed its
+  data folder with a v0.11-era config, snoozes and cached board, let it update itself, and check
+  all three carry over. A portable copy of the first offers the second, and its Download button
+  opens the release page.
 - [ ] README repositioned around the sprint pitch and the 1.0 promise.
 - [ ] Config migration and profile export/import tested with every setting added since v0.11.
 
-**Done when:** a 0.14.x build gets through a full sprint of daily use without needing a fix.
+**Done when:** every test above runs in CI on each push to `main`, and a 0.14.x build gets
+through a full sprint of daily use without needing a fix.
 
 ## v1.0: Stable
 
-- [ ] v0.11 through v0.14 each reached installed copies (Windows installer and Linux AppImage)
-  through the auto-updater, with no manual reinstall.
+- [ ] The update test passes for the Windows installer and the Linux AppImage on the 1.0 build.
 - [ ] The 1.0 promise holds.
 
 **Done when:** both boxes are ticked. v1.0.0 adds no features.

@@ -183,7 +183,9 @@ Run these from the repo root unless noted.
 - **No AI attribution** in commits or PRs. That means no `Co-Authored-By` trailers, no
   "Generated with" lines and no session links.
 - **Tests:** logic in `core/` gets a Node test next to it with a mocked GitHub endpoint, never
-  the network. Add a case for every attention reason and every config migration.
+  the network. Add a case for every attention reason and every config migration. Checks are
+  automated: anything you'd verify by hand, such as a UI state or an update, gets a test that
+  runs in CI instead.
 - **Code comments:** match the surrounding density. Comments explain why: an API quirk, a
   performance trade-off, a fallback and its cause. Don't restate what the code says.
 - **Docs:** short. Prefer editing `ROADMAP.md` over new planning documents.
