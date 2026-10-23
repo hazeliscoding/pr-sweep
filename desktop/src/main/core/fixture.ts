@@ -136,6 +136,7 @@ function toRow(r: Json, path: string, org: string, fallbackBucket: ReviewBucket,
   const createdAt = times.createdAt ?? relativeTime('-2h', now);
   const reviewers = (r.requestedReviewers as string[]) ?? [];
   return {
+    id: `${r.repo}#${r.number}`,
     repo: r.repo,
     number: r.number,
     title: r.title,

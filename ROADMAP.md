@@ -473,6 +473,11 @@ Theme: nothing new. Make what exists boringly reliable, and prove it with tests 
   data folder with a v0.11-era config, snoozes and cached board, let it update itself, and check
   all three carry over. A portable copy of the first offers the second, and its Download button
   opens the release page.
+- [x] Auto-refreshes re-read the CI of rows still pending or failing. A check finishing doesn't
+  update its PR (verified live), so CI that took longer than 5–10 minutes stayed pending, and a
+  re-run of a failed check never showed, until a manual Refresh. *Electron team profile, 3 runs:
+  an auto-refresh takes 1.0 s and 2 requests when nothing changed (0.7 s and 1 in v0.10.4), and
+  2.2 s and 5 when something did (1.7 s and 4 before the fix). Snapshots move to schema 7.*
 - [ ] README repositioned around the sprint pitch and the 1.0 promise.
 - [ ] Config migration and profile export/import tested with every setting added since v0.11.
 

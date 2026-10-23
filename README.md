@@ -141,6 +141,8 @@ GitHub search has quirks, all checked against the live API. PR Sweep works aroun
   one follow-up query, only for the PRs whose attention depends on them.
 - Auto-refreshes ask only for PRs updated since the last sweep and patch the cached result. A
   manual Refresh always sweeps in full.
+- A check finishing doesn't count as an update to its PR, so those searches never see it.
+  Auto-refreshes re-read the CI status of every PR whose checks were still running or failing.
 
 ## Development
 

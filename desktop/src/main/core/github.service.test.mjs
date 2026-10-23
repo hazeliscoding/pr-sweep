@@ -814,6 +814,44 @@ await assert.rejects(
   assert.equal(pr(2).mergeable, 'mergeable');
 }
 
+// --- incremental: checks finishing don't update a PR, so unsettled CI is re-read ---
+{
+  const cached = (number, ci) => ({ ...row(number, 'needs-review'), id: `n${number}`, ci });
+  const base = {
+    fetchedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+    schema: SWEEP_SCHEMA,
+    org: 'acme',
+    range: { start: '2026-08-01', end: null },
+    open: [cached(1, 'pending'), cached(2, 'failure'), cached(3, 'success')],
+    merged: [],
+    queue: [cached(1, 'pending')],
+  };
+  const ciIds = [];
+  const rollup = { n1: 'SUCCESS', n2: 'PENDING' };
+  globalThis.fetch = async (_url, opts) => {
+    const body = JSON.parse(opts.body);
+    if (body.query.includes('nodes(ids:')) {
+      ciIds.push(...body.variables.ids);
+      return json({
+        nodes: body.variables.ids.map((id) => ({
+          id,
+          commits: { nodes: [{ commit: { statusCheckRollup: { state: rollup[id] } } }] },
+        })),
+      });
+    }
+    if (!body.query.includes('search(')) return json({ viewer: { login: 'me' } });
+    return json(page([])); // nothing updated on GitHub
+  };
+  const svc = new GithubService(() => 'tok');
+  const result = await svc.sweep(makeConfig(), { start: '2026-08-01', end: null }, base);
+  assert.deepEqual(ciIds.sort(), ['n1', 'n2'], 'only pending and failing rows, once each');
+  const ci = (rows, n) => rows.find((r) => r.number === n).ci;
+  assert.equal(ci(result.open, 1), 'success', 'a check that finished shows');
+  assert.equal(ci(result.open, 2), 'pending', 'a re-run of a failed check shows');
+  assert.equal(ci(result.open, 3), 'success', 'settled rows are left alone');
+  assert.equal(ci(result.queue, 1), 'success', 'queue rows are re-read too');
+}
+
 // --- results carry the snapshot schema ---
 {
   const { result } = await runSweep(makeConfig(), { start: '2026-08-01', end: null });

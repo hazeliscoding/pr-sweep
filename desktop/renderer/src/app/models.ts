@@ -147,6 +147,7 @@ export interface StandupCounts {
 }
 
 export interface PrRow {
+  id: string;
   repo: string;
   number: number;
   title: string;

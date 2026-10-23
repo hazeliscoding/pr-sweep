@@ -29,6 +29,9 @@
  *  - auto-refreshes can run incrementally against the previous sweep: one cheap
  *    org-wide "what changed since last time" probe plus per-bucket deltas,
  *    instead of re-fetching every PR in the range (see sweep()'s `base` param).
+ *  - a check finishing doesn't touch the PR's updatedAt (an electron PR's checks
+ *    failed 27 minutes after it), so the deltas never see it. Cached rows whose
+ *    CI hadn't settled get it re-read on every patch (CI_QUERY).
  */
 import { DateRange, PrRow, ReviewBucket, SWEEP_SCHEMA, SweepConfig, SweepResult } from '../../shared/types';
 import { activeProfile } from './config.service';
@@ -126,6 +129,16 @@ const DETAIL_QUERY = `
     }
   }
 `;
+/** The CI light alone, for cached open rows still pending or failing (see incrementalSweep). */
+const CI_QUERY = `
+  query ($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on PullRequest {
+        id${CI_FIELD}
+      }
+    }
+  }
+`;
 /** nodes(ids:) takes at most 100 ids. */
 const DETAIL_BATCH = 100;
 /** Carried-over PRs are split by creation date from here: nothing on GitHub is older. */
@@ -170,6 +183,8 @@ interface DetailNode {
 }
 
 type Details = Pick<PrRow, 'mergeable' | 'approvedAt' | 'changesRequestedAt' | 'reviewCount'>;
+
+type CiNode = Pick<SearchNode, 'id' | 'commits'>;
 
 interface SearchPage {
   search: {
@@ -341,13 +356,22 @@ export class GithubService {
     // Search wants +00:00, not the Z suffix, for datetime qualifiers.
     const since = new Date(sinceMs).toISOString().replace(/\.\d{3}Z$/, '+00:00');
 
-    const changed = await this.searchAll(`org:${base.org} is:pr updated:>=${since}`, QUERY_BARE);
+    // Checks finishing don't count as an update, so rows still pending (or
+    // failing, and maybe re-run) get their CI re-read alongside the probe.
+    const unsettled = [...base.open, ...base.queue].filter((r) => r.ci === 'pending' || r.ci === 'failure');
+    const [changed, ciNodes] = await Promise.all([
+      this.searchAll(`org:${base.org} is:pr updated:>=${since}`, QUERY_BARE),
+      this.fetchNodes<CiNode>(CI_QUERY, [...new Set(unsettled.map((r) => r.id))]),
+    ]);
     // More changes than one query can enumerate → the removal signal is
     // incomplete and patching could leave ghosts. Resweep instead.
     if (changed.total > SEARCH_CAP) return null;
+    const ci = new Map(ciNodes.map((n) => [n.id, ciOf(n)]));
+    const recheck = (rows: PrRow[]): PrRow[] => rows.map((r) => (ci.has(r.id) ? { ...r, ci: ci.get(r.id) ?? null } : r));
+    const [cachedOpen, cachedQueue] = [recheck(base.open), recheck(base.queue)];
     const touched = new Set(changed.nodes.map(nodeKey));
     const fetchedAt = new Date().toISOString();
-    if (touched.size === 0) return { ...base, fetchedAt };
+    if (touched.size === 0) return { ...base, fetchedAt, open: cachedOpen, queue: cachedQueue };
 
     const mergedRange = range.end ? `merged:${range.start}..${range.end}` : `merged:>=${range.start}`;
     const [open, merged, queue] = await Promise.all([
@@ -365,9 +389,9 @@ export class GithubService {
       fetchedAt,
       org: base.org,
       range,
-      open: patch(base.open, open),
+      open: patch(cachedOpen, open),
       merged: patch(base.merged, merged.map((n) => toRow(n, 'merged'))),
-      queue: patch(base.queue, queue.map((n) => toRow(n, bucketOf(n), login))),
+      queue: patch(cachedQueue, queue.map((n) => toRow(n, bucketOf(n), login))),
       summary: null,
     };
   }
@@ -402,28 +426,27 @@ export class GithubService {
 
   /** Open rows, with details for the ones that need them. */
   private async openRows(nodes: SearchNode[]): Promise<PrRow[]> {
-    const details = await this.fetchDetails(nodes.filter(needsDetails).map((n) => n.id));
+    const found = await this.fetchNodes<DetailNode>(DETAIL_QUERY, nodes.filter(needsDetails).map((n) => n.id));
+    const details = new Map(found.map((d) => [d.id, detailsOf(d)]));
     return nodes.map((n) => toRow(n, bucketOf(n), undefined, details.get(n.id)));
   }
 
   /**
-   * DETAIL_QUERY for `ids`, a batch at a time. The details are optional: if
-   * GitHub won't answer, the board still shows, and those rows just lack them
-   * until the next sweep.
+   * A nodes(ids:) query for `ids`, a batch at a time. What it fetches is
+   * optional: if GitHub won't answer, the board still shows, and those rows
+   * keep what they had until the next sweep.
    */
-  private async fetchDetails(ids: string[]): Promise<Map<string, Details>> {
-    const details = new Map<string, Details>();
+  private async fetchNodes<T extends { id: string }>(doc: string, ids: string[]): Promise<T[]> {
+    const found: T[] = [];
     try {
       for (let i = 0; i < ids.length; i += DETAIL_BATCH) {
-        const data = await this.graphql<{ nodes: Array<DetailNode | null> }>(DETAIL_QUERY, {
-          ids: ids.slice(i, i + DETAIL_BATCH),
-        });
-        for (const d of data.nodes ?? []) if (d?.id) details.set(d.id, detailsOf(d));
+        const data = await this.graphql<{ nodes: Array<T | null> }>(doc, { ids: ids.slice(i, i + DETAIL_BATCH) });
+        for (const d of data.nodes ?? []) if (d?.id) found.push(d);
       }
     } catch (e) {
-      if (process.env.PRSWEEP_DEBUG) console.log(`[github] details skipped: ${(e as Error).message}`);
+      if (process.env.PRSWEEP_DEBUG) console.log(`[github] nodes skipped: ${(e as Error).message}`);
     }
-    return details;
+    return found;
   }
 
   /** Merged PRs in from..to, one week per search with MERGED_CONCURRENCY in flight. */
@@ -609,6 +632,7 @@ function detailsOf(d: DetailNode): Details {
 
 function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string, details?: Details): PrRow {
   return {
+    id: n.id,
     repo: n.repository.name,
     number: n.number,
     title: n.title,
@@ -641,7 +665,7 @@ function toRow(n: SearchNode, bucket: ReviewBucket, viewer?: string, details?: D
 }
 
 /** Latest commit's check rollup, collapsed to a traffic light (null = no checks). */
-function ciOf(n: SearchNode): PrRow['ci'] {
+function ciOf(n: CiNode): PrRow['ci'] {
   const state = n.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state;
   if (!state) return null;
   if (state === 'SUCCESS') return 'success';

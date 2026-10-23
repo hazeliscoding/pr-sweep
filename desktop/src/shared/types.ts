@@ -188,6 +188,8 @@ export interface StandupCounts {
 }
 
 export interface PrRow {
+  /** GitHub's node id, so a cached row can be re-read with nodes(ids:). */
+  id: string;
   repo: string;
   number: number;
   title: string;
@@ -229,7 +231,7 @@ export interface PrRow {
  * incremental refreshes keep cached rows until each PR changes on GitHub, so a
  * snapshot from an older build must be swept afresh, never painted or patched.
  */
-export const SWEEP_SCHEMA = 6;
+export const SWEEP_SCHEMA = 7;
 
 export interface SweepResult {
   /** SWEEP_SCHEMA when this was written; absent in snapshots from before v0.11. */
