@@ -91,13 +91,14 @@ but not Azure Boards (`AB#123`), GitHub Issues (`#123`) or Shortcut (`sc-123`), 
 form would only help some teams. Grouping that works whatever tracker a team uses needs its own
 design. Gave up: cross-repo grouping in 1.0. The release candidate becomes v0.14, so there are
 four minor releases to 1.0: v0.11 Sweep, v0.12 Quorum and sprints, v0.13 Sprint summary, v0.14
-Release candidate.
+Release candidate. *Superseded later the same day: the release candidate folds into 1.0.*
 - **Checks are automated tests.** Anything the roadmap would check by hand runs as a test in CI
 instead, as in the owner's other desktop apps. The 1.0 gate that watched installed copies update
 becomes an update test in the release candidate, covering what v0.12 and v0.13 checked by hand,
 and the end-to-end tests take over the snooze check. Gave up: watching real installed copies of
 each release update; the test updates a fresh install of the build under test from a local feed
-instead. Fixture screenshots stay, for reviewing how a change looks.
+instead. Fixture screenshots stay, for reviewing how a change looks. *The update test moved after
+1.0 later the same day.*
 - **Until 1.0, commits go straight to `main`** and are pushed as they land. CI already runs on
 every push to `main`, and with automated tests it carries the checks a milestone's pull request
 used to hold. Gave up: a draft pull request per milestone. After 1.0, each release goes back to
@@ -106,6 +107,13 @@ its own branch.
 summary line, a three-step Try it, one-line bullets with bold labels, Heads-up, Thanks, then
 links to install and the full changelog. Gave up: the TL;DR line and the Getting it section,
 which repeated the README's install and update steps.
+- **The release candidate folds into 1.0.** The app has real users now, so fixes ship as patches
+(v0.13.1) while 1.0 waits for a week of clean daily use. That makes three minor releases before
+1.0: v0.11 Sweep, v0.12 Quorum and sprints and v0.13 Sprint summary. The update test moves after
+1.0, because real installs already updated from v0.11 through v0.13.1; it guards the releases
+after it. A pending OAuth-app approval gets a README heads-up instead of its own state: checking
+what an unapproved app's token sees needs an org that restricts OAuth apps. Gave up: the update
+test and a checked OAuth-approval state in 1.0, and a full sprint of soak time, now a week.
 
 ## v0.11 decisions (2026-09-25)
 
@@ -263,8 +271,8 @@ clunky.
 - [x] Tests run in CI on every PR and push
 - [x] Keyboard navigation / accessibility pass (focusable PR rows, dialog semantics, focus rings)
 
-- Screenshot driver as a CI smoke test: *moved to the release candidate (v0.14), where the
-fixture sweep removes the token-secret blocker*
+- Screenshot driver as a CI smoke test: *moved to the release candidate (now part of v1.0),
+where the fixture sweep removes the token-secret blocker*
 
 ### v0.9: Platforms and performance ✅
 
@@ -464,44 +472,43 @@ Built on the `release/v0.13` branch.
 editing it (Slack, untested, gets the same formatted version as Teams), the strip's numbers agree with the standup's, and no number in the strip changes
 when you pick an author chip.
 
-## v0.14: Release candidate
+## v1.0: Stable
 
-Theme: nothing new. Make what exists boringly reliable, and prove it with tests in CI.
+Theme: nothing new. Make what exists boringly reliable, and prove it with tests in CI. This was
+the v0.14 release candidate until it folded into 1.0 on 2026-10-22.
 
-- [ ] End-to-end tests: playwright-core drives the built app on fixtures and asserts the
-  first-run, empty, loading and error states, including the SSO-blind token and the pending
-  OAuth-app approval, plus snoozes. They run in CI under `xvfb-run`, with no token secret.
-  *All but the pending approval pass in CI (`npm run test:e2e`). The app has no state of its
-  own for it yet: what a token from an unapproved OAuth app sees needs checking first, on an
-  org with OAuth-app access restrictions.*
+- [x] End-to-end tests: playwright-core drives the built app on fixtures and asserts the
+  first-run, empty, loading and error states, the SSO-blind token, and snoozes. They run in CI
+  under `xvfb-run`, with no token secret. *`npm run test:e2e`. The pending OAuth-app approval
+  moved after 1.0.*
 - [x] The screenshot script runs in the same CI job against the fixture sweep. This is the item
   deferred from v0.8. *The shots upload as the `fixture-screenshots` artifact on every run.*
-- [ ] Update test in CI: package the build twice, the second with a higher version, both pointed
-  at a local update feed. Install the first (Windows installer and Linux AppImage), seed its
-  data folder with a v0.11-era config, snoozes and cached board, let it update itself, and check
-  all three carry over. A portable copy of the first offers the second, and its Download button
-  opens the release page.
 - [x] Auto-refreshes re-read the CI of rows still pending or failing. A check finishing doesn't
   update its PR (verified live), so CI that took longer than 5–10 minutes stayed pending, and a
   re-run of a failed check never showed, until a manual Refresh. *Electron team profile, 3 runs:
   an auto-refresh takes 1.0 s and 2 requests when nothing changed (0.7 s and 1 in v0.10.4), and
   2.2 s and 5 when something did (1.7 s and 4 before the fix). Snapshots move to schema 7.
   Shipped in v0.13.1.*
-- [ ] README repositioned around the sprint pitch and the 1.0 promise.
+- [ ] README repositioned around the sprint pitch and the 1.0 promise, with a heads-up for orgs
+  that restrict OAuth apps: an org owner approves PR Sweep, or you sign in with a token.
 - [ ] Config migration and profile export/import tested with every setting added since v0.11.
-
-**Done when:** every test above runs in CI on each push to `main`, and a 0.14.x build gets
-through a full sprint of daily use without needing a fix.
-
-## v1.0: Stable
-
-- [ ] The update test passes for the Windows installer and the Linux AppImage on the 1.0 build.
+- [ ] `CONTRIBUTING.md` and `SECURITY.md`, from the OSS launch gates.
+- [ ] A code-review agent reads the code before the tag.
 - [ ] The 1.0 promise holds.
 
-**Done when:** both boxes are ticked. v1.0.0 adds no features.
+**Done when:** every box is ticked, the tests run in CI on each push to `main`, and the latest
+0.13.x has run a week of daily use without needing a fix. v1.0.0 adds no features.
 
 ## Later
 
+- Update test in CI: package the build twice, the second with a higher version, both pointed at a
+local update feed. Install the first (Windows installer and Linux AppImage), seed its data folder
+with an older config, snoozes and cached board, let it update itself, and check all three carry
+over. A portable copy of the first offers the second, and its Download button opens the release
+page
+- A pending OAuth-app approval as its own state: check what an unapproved app's token sees on an
+org that restricts OAuth apps, then give it its own message and an end-to-end test, apart from
+the SSO-blind token
 - Faster whole-org views on very large orgs: pace searches under GitHub's secondary rate
 limit instead of waiting out 403s
 - Tauri port, decided after 1.0 from measured idle memory and installer size. A port means

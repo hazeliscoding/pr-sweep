@@ -19,8 +19,7 @@ on one board, sorted by GitHub's own review state, so nobody maintains labels or
 Set the org, the team and your sprint schedule once. It refreshes every five minutes from the tray.
 
 > **Status:** v0.13, in daily use. Windows and Linux builds are on [Releases](../../releases) and
-> update themselves. Next is the release candidate, then 1.0. See
-> [ROADMAP.md](ROADMAP.md).
+> update themselves. Next is 1.0. See [ROADMAP.md](ROADMAP.md).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/board-dark.png">
