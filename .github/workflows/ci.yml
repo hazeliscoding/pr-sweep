@@ -28,3 +28,15 @@ jobs:
       # WCAG AA on the Quorum tokens, and no remote assets or stray fonts in the renderer.
       - name: Design checks
         run: npm run check
+      # The built app in each fixture state, on a virtual display. No token needed.
+      - name: End-to-end tests
+        run: xvfb-run -a npm run test:e2e
+      - name: Fixture screenshots
+        working-directory: desktop
+        run: xvfb-run -a node e2e/screenshot.mjs --fixtures
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixture-screenshots
+          path: desktop/e2e/shots/
