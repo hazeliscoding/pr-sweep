@@ -466,8 +466,11 @@ Theme: nothing new. Make what exists boringly reliable, and prove it with tests 
 - [ ] End-to-end tests: playwright-core drives the built app on fixtures and asserts the
   first-run, empty, loading and error states, including the SSO-blind token and the pending
   OAuth-app approval, plus snoozes. They run in CI under `xvfb-run`, with no token secret.
-- [ ] The screenshot script runs in the same CI job against the fixture sweep. This is the item
-  deferred from v0.8.
+  *All but the pending approval pass in CI (`npm run test:e2e`). The app has no state of its
+  own for it yet: what a token from an unapproved OAuth app sees needs checking first, on an
+  org with OAuth-app access restrictions.*
+- [x] The screenshot script runs in the same CI job against the fixture sweep. This is the item
+  deferred from v0.8. *The shots upload as the `fixture-screenshots` artifact on every run.*
 - [ ] Update test in CI: package the build twice, the second with a higher version, both pointed
   at a local update feed. Install the first (Windows installer and Linux AppImage), seed its
   data folder with a v0.11-era config, snoozes and cached board, let it update itself, and check
