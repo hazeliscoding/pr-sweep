@@ -166,14 +166,19 @@ Run these from the repo root unless noted.
   subject with it: `fix: single-instance lock … (v0.10.4)`.
 - **Every release has hand-written notes** in `docs/releases/vX.Y.Z.md`, committed with the
   version bump. The release workflow publishes that file as the release body and fails before
-  building if it's missing. Write them for a reader skimming on a phone:
-  - Open with one bold **TL;DR:** line saying what changed and why it matters.
-  - Then short sections, in this order, only when they have something: `## New`,
-    `## Faster`, `## Fixed`, `## Heads up` (anything a user might trip over), and
-    `## Getting it`.
-  - One line per bullet, starting with a **bold** phrase. Plain words, user-visible effects,
-    real numbers when there are some. No commit hashes, no internals, no paragraphs, and no
-    emoji: Quorum's voice applies to release notes too.
+  building if it's missing. They use the owner's format for all their apps, short enough to scan
+  on a phone (`docs/releases/v0.13.1.md` is an example):
+  - A bold one-line summary, `**PR Sweep X.Y.Z: what changed.**`, then why it matters.
+  - `## Try it`: three numbered steps to see the change.
+  - `## What's new` (`## What's fixed` for a fix-only release): one line per bullet, starting
+    with a **bold label:**. Plain words, user-visible effects, real numbers when there are some.
+    No commit hashes, no internals, no paragraphs.
+  - `## Heads-up`: this release's caveats, when there are any.
+  - `## Thanks`: contributors from outside the project by @-name with their pull requests, saying
+    when it's their first. Leave it out when there's nobody to thank.
+  - Last, `[Download and install](…#install) · [Full changelog](…/compare/vPREV...vX.Y.Z)`.
+  - Leave out what the README already says: downloads, install and update steps, what the app
+    is. No emoji: Quorum's voice applies to release notes too.
 - Pushing a `v*` tag runs `.github/workflows/release.yml`. It builds the signed Windows installer,
   the portable exe and the Linux AppImage, then publishes one GitHub release. The `latest*.yml`
   files and blockmaps must ship with every release, because the auto-updater reads them.

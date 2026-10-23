@@ -55,7 +55,8 @@ haven't been measured yet.
 - **Every release has hand-written notes** in `docs/releases/vX.Y.Z.md`: a bold TL;DR line, then
 short one-line bullets under New, Faster, Fixed, Heads up and Getting it. The release workflow
 publishes the file as the release body and fails before building if it's missing. GitHub's
-generated notes were just a compare link.
+generated notes were just a compare link. *Superseded on 2026-10-22: the owner's format for all
+apps.*
 
 ## Decisions (2026-09-29)
 
@@ -101,6 +102,10 @@ instead. Fixture screenshots stay, for reviewing how a change looks.
 every push to `main`, and with automated tests it carries the checks a milestone's pull request
 used to hold. Gave up: a draft pull request per milestone. After 1.0, each release goes back to
 its own branch.
+- **Release notes use the owner's format for all apps**, as in Prompuff and Sweepling: a bold
+summary line, a three-step Try it, one-line bullets with bold labels, Heads-up, Thanks, then
+links to install and the full changelog. Gave up: the TL;DR line and the Getting it section,
+which repeated the README's install and update steps.
 
 ## v0.11 decisions (2026-09-25)
 
