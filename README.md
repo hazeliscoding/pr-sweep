@@ -151,6 +151,7 @@ npm install          # root, desktop and renderer deps (rerun after pulling)
 npm run dev          # Angular dev server (:4301) + Electron with live reload
 npm run build        # renderer AOT build + main-process tsc (the typecheck)
 npm test             # core service tests (build first)
+npm run test:e2e     # the built app in each fixture state (build first)
 ```
 
 ```sh

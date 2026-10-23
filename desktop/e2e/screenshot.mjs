@@ -10,65 +10,15 @@
  *     The live board for an org, in both themes.
  *
  * Run from desktop/ after `npm run build`. Output: e2e/shots/<state>-<theme>.png.
- *
- * Every run gets a throwaway --user-data-dir and aborts unless the app really
- * uses it, so your own config, token and snapshot are never touched. (Chromium
- * finds %APPDATA% through a Windows API, so overriding the variable does nothing.)
- * Selectors go by visible text, labels and roles, not classes, so the same
- * script shoots the UI before and after a restyle.
+ * Launching, and the throwaway data folder each run gets, are in app.mjs.
  */
-import { _electron } from 'playwright-core';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
-import { loadFixture } from '../dist/main/main/core/fixture.js';
+import { boardReady, button, configFor, launch, launchFixture } from './app.mjs';
 
 const SHOTS = fileURLToPath(new URL('./shots/', import.meta.url));
 mkdirSync(SHOTS, { recursive: true });
-
-async function launch(config, env) {
-  const userData = mkdtempSync(join(tmpdir(), 'prsweep-shots-'));
-  writeFileSync(join(userData, 'config.json'), JSON.stringify(config));
-  const app = await _electron.launch({
-    args: [`--user-data-dir=${userData}`, '.'],
-    env: { ...process.env, ELECTRON_RENDERER_URL: '', PRSWEEP_DEBUG: '', ...env },
-  });
-  const actual = await app.evaluate(({ app: a }) => a.getPath('userData'));
-  if (actual.toLowerCase() !== userData.toLowerCase()) {
-    await app.close();
-    rmSync(userData, { recursive: true, force: true });
-    throw new Error(`the app uses ${actual}, not the throwaway folder — aborting`);
-  }
-  // Copy standup writes the system clipboard; a screenshot run leaves yours alone.
-  await app.evaluate(({ clipboard }) => {
-    clipboard.write = () => undefined;
-  });
-  const win = await app.firstWindow();
-  // The app scrolls inside its main pane, so a full-page shot stops at the
-  // window's height: a tall viewport captures every section.
-  await win.setViewportSize({ width: 1440, height: 2400 });
-  // An occluded window can throttle rendering and stall page.screenshot.
-  await win.bringToFront().catch(() => void 0);
-  win.setDefaultTimeout(60_000);
-  const close = async () => {
-    await app.close();
-    rmSync(userData, { recursive: true, force: true });
-  };
-  return { win, close, app };
-}
-
-function configFor(profile) {
-  return {
-    profiles: [{ id: 'shots', name: 'Acme team', ...profile }],
-    activeProfileId: 'shots',
-    autoRefreshMinutes: 0,
-    notifications: false,
-    closeToTray: false,
-    oauthClientId: '',
-  };
-}
 
 /** Both themes of the current screen, as <name>-light.png and <name>-dark.png. */
 async function shoot(win, name) {
@@ -80,13 +30,6 @@ async function shoot(win, name) {
   await win.evaluate(() => (document.documentElement.dataset.theme = 'light'));
   console.log(`  ${name}`);
 }
-
-async function boardReady(win) {
-  await win.locator('#sweep-title').waitFor();
-  await win.waitForTimeout(800);
-}
-
-const button = (win, name) => win.getByRole('button', { name });
 
 /** What to capture for each fixture, beyond launching it. */
 const STATES = {
@@ -153,10 +96,8 @@ const STATES = {
 };
 
 async function shootFixtures(names) {
-  const read = (n) => JSON.parse(readFileSync(new URL(`./fixtures/${n}.json`, import.meta.url), 'utf8'));
   for (const name of names) {
-    const fixture = loadFixture(name, read, Date.now());
-    const { win, close } = await launch(configFor(fixture.profile), { PRSWEEP_FIXTURE: name });
+    const { win, close } = await launchFixture(name);
     console.log(name);
     try {
       await STATES[name](win);
@@ -195,9 +136,7 @@ async function shootLive() {
 
 /** The README's board: what fits in a window, drawn at 2x so it stays sharp on GitHub. */
 async function shootReadme() {
-  const read = (n) => JSON.parse(readFileSync(new URL(`./fixtures/${n}.json`, import.meta.url), 'utf8'));
-  const fixture = loadFixture('busy', read, Date.now());
-  const { win, close, app } = await launch(configFor(fixture.profile), { PRSWEEP_FIXTURE: 'busy' });
+  const { win, close, app } = await launchFixture('busy');
   const out = fileURLToPath(new URL('../../docs/screenshots/', import.meta.url));
   try {
     await win.setViewportSize({ width: 2880, height: 1800 });

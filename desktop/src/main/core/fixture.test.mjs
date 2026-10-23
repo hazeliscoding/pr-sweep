@@ -56,6 +56,15 @@ const read = (files) => (name) => {
   assert.deepEqual(f.sweep.merged, []);
 }
 
+// --- auth states pass through; anything else signs in ---
+{
+  const profile = { org: 'acme', authors: [], range: { start: '-1d', end: null } };
+  const authOf = (auth) => loadFixture('a', read({ a: { profile, auth } }), NOW).auth;
+  assert.equal(authOf('no-token'), 'no-token');
+  assert.equal(authOf('org-hidden'), 'org-hidden', 'a token that cannot see the org');
+  assert.equal(authOf('bogus'), 'signed-in');
+}
+
 // --- bad rows fail with a message that names the fixture and the field ---
 assert.throws(
   () =>

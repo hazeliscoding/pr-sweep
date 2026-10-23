@@ -22,7 +22,9 @@ organization. It ships for Windows and Linux.
   across the boundary. A contract change touches `types.ts`, `models.ts`, `preload.ts` and
   `ipc.ts`.
 - `desktop/renderer/`: the Angular app. `BoardStore` (signals) holds the board state.
-- `desktop/e2e/screenshot.mjs`: drives the built app with playwright-core for visual checks.
+- `desktop/e2e/`: playwright-core drives the built app. `app.mjs` launches it with a throwaway
+  data folder, `states.test.mjs` asserts what each fixture state shows, and `screenshot.mjs`
+  shoots them for visual review.
 
 ## GitHub API rules
 
@@ -127,6 +129,9 @@ Run these from the repo root unless noted.
 - `npm test` runs the Node tests in `desktop/src/main/core/*.test.mjs`. They import the compiled
   `desktop/dist/`, so build first.
 - `npm run check` runs the design checks (contrast in both themes, then assets). CI runs it.
+- `npm run test:e2e` drives the built app through the fixture states (first run, loading, empty,
+  error, SSO-blind token, snooze) and asserts what each shows. Build first. CI runs it and the
+  fixture screenshots under `xvfb-run`, and uploads the screenshots as an artifact.
 - `npm run package:win` builds the installer and portable exe. `npm run package:linux` builds
   the AppImage and has to run on Linux. Local packages are unsigned unless the Azure env vars
   are set.

@@ -23,8 +23,8 @@ export interface FixtureProfile {
 export interface Fixture {
   /** Seeded into config.json by the screenshot script. */
   profile: FixtureProfile;
-  /** 'no-token' shows onboarding. */
-  auth: 'signed-in' | 'no-token';
+  /** 'no-token' shows onboarding; 'org-hidden' is a token that can't see the org (SSO not authorized). */
+  auth: 'signed-in' | 'no-token' | 'org-hidden';
   sweep: { open: PrRow[]; merged: PrRow[]; queue: PrRow[] };
   /** Sweeps after this many succeed fail with `error`. */
   failAfter: number | null;
@@ -98,7 +98,7 @@ export function loadFixture(name: string, read: (name: string) => unknown, now: 
         : null,
       period: (profile.period as Period | undefined) ?? (sprints ? 'current' : 'custom'),
     },
-    auth: raw.auth === 'no-token' ? 'no-token' : 'signed-in',
+    auth: raw.auth === 'no-token' || raw.auth === 'org-hidden' ? raw.auth : 'signed-in',
     sweep: { open: rows('open', 'needs-review'), merged: rows('merged', 'merged'), queue: rows('queue', 'needs-review') },
     failAfter: typeof raw.failAfter === 'number' ? raw.failAfter : null,
     error: String(raw.error ?? 'GitHub API error: HTTP 502'),

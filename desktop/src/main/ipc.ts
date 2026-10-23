@@ -138,9 +138,9 @@ export function registerIpc(services: Services): void {
 }
 
 function fixtureAuth(fixture: Fixture): AuthStatus {
-  return fixture.auth === 'no-token'
-    ? { hasToken: false, login: null, error: null }
-    : { hasToken: true, login: 'you', error: null };
+  if (fixture.auth === 'no-token') return { hasToken: false, login: null, error: null };
+  const error = fixture.auth === 'org-hidden' ? orgHiddenError('you', fixture.profile.org) : null;
+  return { hasToken: true, login: 'you', error };
 }
 
 let fixtureSweeps = 0;
@@ -185,18 +185,17 @@ async function authStatus(services: Services): Promise<AuthStatus> {
       org ? services.github.orgVisible(org) : Promise.resolve(false),
     ]);
     if (!org) return { hasToken: true, login, error: 'No GitHub organization is set yet.' };
-    if (!orgOk) {
-      return {
-        hasToken: true,
-        login,
-        error:
-          `This token signs in as ${login} but can't see ${org}. ` +
-          `If the org uses SAML SSO, open the token on github.com, choose Configure SSO and authorize ${org}, ` +
-          `then paste it again. Also check that it has the repo and read:org scopes.`,
-      };
-    }
+    if (!orgOk) return { hasToken: true, login, error: orgHiddenError(login, org) };
     return { hasToken: true, login, error: null };
   } catch (e) {
     return { hasToken: true, login: null, error: (e as Error).message };
   }
+}
+
+function orgHiddenError(login: string, org: string): string {
+  return (
+    `This token signs in as ${login} but can't see ${org}. ` +
+    `If the org uses SAML SSO, open the token on github.com, choose Configure SSO and authorize ${org}, ` +
+    `then paste it again. Also check that it has the repo and read:org scopes.`
+  );
 }

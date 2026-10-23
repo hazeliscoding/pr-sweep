@@ -11,6 +11,7 @@
     "dev:app": "wait-on http://localhost:4301 && cd desktop && npm run build:main && cross-env ELECTRON_RENDERER_URL=http://localhost:4301 npm start",
     "build": "cd desktop/renderer && npm run build && cd .. && npm run build:main",
     "test": "cd desktop && npm test",
+    "test:e2e": "cd desktop && node e2e/states.test.mjs",
     "check": "node desktop/renderer/scripts/check-contrast.mjs && node desktop/renderer/scripts/check-assets.mjs",
     "package": "npm run build && cd desktop && npm run package",
     "package:win": "npm run build && cd desktop && npm run package:win",
