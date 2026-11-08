@@ -11,7 +11,6 @@ import { IconComponent } from './ui/icon.component';
  */
 @Component({
   selector: 'app-period-picker',
-  standalone: true,
   imports: [IconComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

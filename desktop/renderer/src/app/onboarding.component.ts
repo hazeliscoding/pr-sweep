@@ -11,7 +11,6 @@ import { IconComponent } from './ui/icon.component';
  */
 @Component({
   selector: 'app-onboarding',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [IconComponent],
   template: `

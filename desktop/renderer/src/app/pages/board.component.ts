@@ -54,7 +54,6 @@ const SWEEP_SKELETON_ROWS = [1, 2, 3, 4, 5];
  */
 @Component({
   selector: 'app-board',
-  standalone: true,
   imports: [NgTemplateOutlet, CiStatusComponent, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

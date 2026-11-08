@@ -17,7 +17,6 @@ const THEME_KEY = 'prsweep-theme';
  */
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [RouterOutlet, RouterLink, RouterLinkActive, OnboardingComponent, PeriodPickerComponent, FreshnessComponent, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
