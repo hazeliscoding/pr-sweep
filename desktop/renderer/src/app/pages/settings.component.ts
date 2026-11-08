@@ -26,7 +26,6 @@ function sprintDays(value: string): number | null {
  */
 @Component({
   selector: 'app-settings',
-  standalone: true,
   imports: [IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
